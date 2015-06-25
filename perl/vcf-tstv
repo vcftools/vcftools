@@ -1,0 +1,84 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+
+my $opts = parse_params();
+calc_tstv();
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    print 
+        "Usage: cat file.vcf | vcf-tstv\n",
+        "Options:\n",
+        "   -h, -?, --help                  This help message.\n",
+        "\n";
+    exit -1;
+}
+
+
+sub parse_params
+{
+    my $opts = {};
+    while (defined(my $arg=shift(@ARGV)))
+    {
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    return $opts;
+}
+
+sub calc_tstv
+{
+    my $stats;
+    my $n=0;
+    my $multiallelic=0;
+
+    while (my $line=<STDIN>)
+    {
+        if ( substr($line,0,1) eq '#' ) { next; }
+
+        $n++;
+        my $i=-1; for (1..3) { $i=index($line,"\t",$i+1); }
+        my $j = index($line,"\t",$i+1);
+        my $ref = substr($line,$i+1,$j-$i-1);
+        if ( length($ref)>1 ) { next; }
+
+        $i = index($line,"\t",$j+1);
+        my $alt = substr($line,$j+1,$i-$j-1);
+        if ( $alt eq '.' ) { next; }
+
+        $i = index($alt,',');
+        if ( $i!=-1 ) { $alt = substr($alt,0,$i); } # only first ALT is counted
+        if ( length($alt)>1 ) { next; }
+
+        if ( $i!=-1 ) { $multiallelic++ }
+
+        $$stats{$ref.$alt}++;
+    }
+    
+    my $ts = 0;
+    for my $mut (qw(AG GA CT TC))
+    {
+        if ( exists($$stats{$mut}) ) { $ts += $$stats{$mut}; }
+    }
+    my $tv = 0;
+    for my $mut (qw(AC CA GT TG AT TA CG GC))
+    {
+        if ( exists($$stats{$mut}) ) { $tv += $$stats{$mut}; }
+    }
+    my $ratio = $tv ? $ts/$tv : 0;
+    printf "%.2f\t%d\t(ts=%d tv=%d total=%d skipped=%d multiallelic=%d)\n", $ratio,$ts+$tv, $ts,$tv,$n,$n-$ts-$tv,$multiallelic;
+}
+
+

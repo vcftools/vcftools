@@ -1,0 +1,319 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+fix_ploidy($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    print 
+        "Usage: cat broken.vcf | vcf-fix-ploidy [OPTIONS] > fixed.vcf\n",
+        "Options:\n",
+        "   -a, --assumed-sex <sex>         M or F, required if the list is not complete in -s\n",
+        "   -l, --fix-likelihoods           Add or remove het likelihoods (not the default behaviour)\n",
+        "   -p, --ploidy <file>             Ploidy definition. The default is shown below.\n",
+        "   -s, --samples <file>            List of sample sexes (sample_name [MF]).\n",
+        "   -h, -?, --help                  This help message.\n",
+        "Default ploidy definition:\n",
+        "   ploidy =>\n",
+        "   {\n",
+        "       X =>\n",
+        "       [\n",
+        "           # The pseudoautosomal regions 60,001-2,699,520 and 154,931,044-155,270,560 with the ploidy 2\n",
+        "           { from=>1, to=>60_000, M=>1 },\n",
+        "           { from=>2_699_521, to=>154_931_043, M=>1 },\n",
+        "       ],\n",
+        "       Y =>\n",
+        "       [\n",
+        "           # No chrY in females and one copy in males\n",
+        "           { from=>1, to=>59_373_566, M=>1, F=>0 },\n",
+        "       ],\n",
+        "       MT =>\n",
+        "       [\n",
+        "           # Haploid MT in males and females\n",
+        "           { from=>1, to => 16_569, M=>1, F=>1 },\n",
+        "       ],\n",
+        "   }\n",
+        "\n";
+    exit -1;
+}
+
+
+sub parse_params
+{
+    my $opts = 
+    {
+        ploidy =>
+        {
+            X =>
+            [
+                { from=>1, to=>60_000, M=>1 },
+                { from=>2_699_521, to=>154_931_043, M=>1 },
+            ],
+            Y =>
+            [
+                { from=>1, to=>59_373_566, M=>1, F=>0 },
+            ],
+            MT =>
+            [
+                { from=>1, to => 16_569, M=>1, F=>1 },
+            ],
+        },
+    };
+    while (defined(my $arg=shift(@ARGV)))
+    {
+        if ( $arg eq '-p' || $arg eq '--ploidy' ) { my $file=shift(@ARGV); my $x=do $file; $$opts{ploidy}=$x; next }
+        if ( $arg eq '-s' || $arg eq '--samples' ) { $$opts{samples}=shift(@ARGV); next }
+        if ( $arg eq '-a' || $arg eq '--assumed-sex' ) { $$opts{assumed_sex}=shift(@ARGV); next }
+        if ( $arg eq '-l' || $arg eq '--fix-likelihoods' ) { $$opts{fix_likelihoods}=1; next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{samples}) ) { error("Missing the -s option.\n") }
+    return $opts;
+}
+
+sub fix_ploidy
+{
+    my ($opts) = @_;
+    my $vcf = $$opts{vcf} = Vcf->new(fh=>\*STDIN);
+    $vcf->parse_header();
+    init_regions($opts);
+    print $vcf->format_header;
+
+    my @samples = $vcf->get_samples;
+    my ($prev_chr,$prev_pos,$regions,$iregion,$nregions);
+    my %nchanged;
+    while (my $line = $vcf->next_line)
+    {
+        my $rec = $vcf->next_data_array($line);
+        if ( !defined $prev_chr or $$rec[0] ne $prev_chr )
+        {
+            $prev_chr = $$rec[0];
+            $prev_pos = $$rec[1];
+            if ( exists($$opts{regions}{$prev_chr}) )
+            {
+                $regions  = $$opts{regions}{$prev_chr};
+                $iregion  = 0;
+                $nregions = @$regions;
+            }
+            else
+            {
+                $regions = undef;
+            }
+        }
+        $prev_chr = $$rec[0];
+        $prev_pos = $$rec[1];
+
+        my $samples;
+        if ( defined $regions )
+        {
+            if ( $prev_pos >= $$regions[$iregion]{from} && $prev_pos <= $$regions[$iregion]{to} )
+            {
+                $samples = $$regions[$iregion]{samples};
+            }
+            else
+            {
+                while ( $iregion<$nregions && $$regions[$iregion]{to}<$prev_pos ) { $iregion++; }
+                if ( $iregion>=$nregions ) { undef $regions; }
+                elsif ( $prev_pos >= $$regions[$iregion]{from} && $prev_pos <= $$regions[$iregion]{to} )
+                {
+                    $samples = $$regions[$iregion]{samples};
+                }
+            }
+        }
+
+        if ( !defined $samples ) { print $line; next; }
+
+        my $igt = $vcf->get_tag_index($$rec[8],'GT',':');
+        my $ipl = $vcf->get_tag_index($$rec[8],'PL',':');
+        my $igl = $vcf->get_tag_index($$rec[8],'GL',':');
+        if ( $igt==-1 ) { print $line; next; }
+
+        my @alt = split(/,/,$$rec[4]);
+        my $nals = $alt[0] eq '.' ? 1 : 1 + scalar @alt;
+
+        my $changed = 0;
+        my $nrec = @$rec;
+        for (my $isample=9; $isample<$nrec; $isample++)
+        {
+            my $sample = $samples[$isample-9];
+            if ( !exists($$samples{$sample}) ) { next; }
+
+            my $gt = $vcf->get_field($$rec[$isample],$igt);
+            my ($pl,$gl);
+            if ( $$opts{fix_likelihoods} && $ipl != -1 ) { $pl = $vcf->get_field($$rec[$isample],$ipl); }
+            if ( $$opts{fix_likelihoods} && $igl != -1 ) { $gl = $vcf->get_field($$rec[$isample],$igl); }
+            
+            my ($new_gt, $new_pl, $new_gl);
+            if ( !$$samples{$sample} )
+            {
+                # missing genotype - leave it as it is unless it must be removed
+                if ( $gt ne '.' && $gt ne './.' ) 
+                { 
+                    my (@als) = $vcf->split_gt($gt);
+                    if ( defined $pl && $pl ne '.' ) { ($new_pl) = reploid_g($rec, 1,  $nals, $pl, scalar @als, 1); }
+                    if ( defined $gl && $gl ne '.' ) { ($new_gl) = reploid_g($rec, -1, $nals, $gl, scalar @als, 1); }
+                    $new_gt = '.'; 
+                    $nchanged{removed}{$sample}++; 
+                }
+            }
+            else
+            {
+                my (@als) = $vcf->split_gt($gt);
+                if ( $$samples{$sample} != @als )
+                {
+                    $new_gt = join('/',($als[0]) x $$samples{$sample});
+                    if ( defined $pl && $pl ne '.' ) { ($new_pl,$new_gt) = reploid_g($rec, 1,  $nals, $pl, scalar @als, $$samples{$sample}); }
+                    if ( defined $gl && $gl ne '.' ) { ($new_gl,$new_gt) = reploid_g($rec, -1, $nals, $gl, scalar @als, $$samples{$sample}); }
+                }
+            }
+            if ( defined $new_gt )
+            {
+                $$rec[$isample] = $vcf->replace_field($$rec[$isample],$new_gt,$igt,':');
+                $changed++;
+            }
+            if ( defined $new_pl )
+            {
+                $$rec[$isample] = $vcf->replace_field($$rec[$isample],$new_pl,$ipl,':');
+                $changed++;
+            }
+            if ( defined $new_gl )
+            {
+                $$rec[$isample] = $vcf->replace_field($$rec[$isample],$new_gl,$igl,':');
+                $changed++;
+            }
+        }
+        if ( $changed ) { print join("\t",@$rec),"\n"; }
+        else { print $line; }
+    }
+
+    # Output stats
+    for my $key (sort keys %nchanged)
+    {
+        for my $sample (sort keys %{$nchanged{$key}})
+        {
+            print STDERR "$sample\t$$opts{samples}{$sample}\t$key\t$nchanged{$key}{$sample}\n";
+        }
+    }
+}
+
+sub reploid_g
+{
+    my ($rec, $extr,$nals,$str,$n,$m) = @_;
+    my @vals = split(/,/,$str);
+    if ( $n==2 && $m==1 )
+    {
+        my @out;
+        my $d = 1;
+        my $k = 0;
+        my ($imin,$min);
+        for (my $i=0; $i<$nals; $i++)
+        {
+            if ( $k>=@vals ) { error("Cannot reploid $$rec[0]:$$rec[1], too few values in $str: $nals, $n->$m ($i,$d,$k)\n"); }
+            if ( $vals[$k] ne '.' && (!defined $min or $min>$extr*$vals[$k]) )
+            {
+                $min = $extr*$vals[$k];
+                $imin = $i;
+            }
+            push @out, $vals[$k];
+            $d++;
+            $k += $d;
+        }
+        my $gt = defined $imin ? $imin : 0;
+        return (join(',',@out), $gt);
+    }
+    elsif ( $n==1 && $m==2 ) 
+    {
+        my @out;
+        my ($imin,$min);
+        for (my $i=0; $i<$nals; $i++)
+        {
+            for (my $j=0; $j<=$i; $j++)
+            {
+                push @out, $i==$j ? $vals[$i] : '.';
+                if ( $vals[$i] ne '.' && (!defined $min or $min>$extr*$vals[$i]) )
+                {
+                     $min = $extr*$vals[$i];
+                     $imin = $i;
+                }
+            }
+        }
+        my $gt = defined $imin ? $imin : 0;
+        return (join(',',@out), "$gt/$gt" );
+    }
+    else { error("Only diploid/haploid cases handled in this version, sorry."); }
+}
+
+sub init_regions
+{
+    my ($opts) = @_;
+
+    open(my $fh,'<',$$opts{samples}) or error("$$opts{samples}: $!");
+    my (%sexes,%samples);
+    while (my $line=<$fh>)
+    {
+        $line =~ s/^\s*//;
+        $line =~ s/\s*$//;
+        if ( !($line=~/^(\S+)\s+(\S+)$/) ) { error("Could not parse the sample file $$opts{sample}, the offending line was: $line"); }
+        push @{$sexes{$2}}, $1;
+        $samples{$1} = $2;
+    }
+    close($fh);
+    $$opts{samples} = \%samples;
+
+    for my $sample ($$opts{vcf}->get_samples())
+    {
+        if ( !exists($samples{$sample}) )
+        {
+            if ( !exists($$opts{assumed_sex}) ) { error("Could not determine the sex of the sample \"$sample\". Would the -a option help here?\n"); }
+            $samples{$sample} = $$opts{assumed_sex};
+            push @{$sexes{$$opts{assumed_sex}}}, $sample;
+        }
+    }
+
+    # Create a quick look-up structure
+    for my $chr (keys %{$$opts{ploidy}})
+    {
+        if ( ref($$opts{ploidy}{$chr}) ne 'ARRAY' ) { error("Uh, expected list reference for $chr regions.\n"); }
+
+        my $prev;
+        for my $reg (sort { $$a{from}<=>$$b{to} } @{$$opts{ploidy}{$chr}})
+        {
+            my $from = $$reg{from};
+            my $to   = $$reg{to}; 
+
+            if ( defined $prev && $prev>=$from ) { error("FIXME: Overlapping regions $chr:$prev>=$from\n"); }
+            $prev = $to;
+            
+            my $region;
+            for my $sex (keys %sexes)
+            {
+                if ( !exists($$reg{$sex}) ) { next; }
+                for my $sample (@{$sexes{$sex}})
+                {
+                    $$region{samples}{$sample} = $$reg{$sex};
+                }
+            }
+            if ( !defined $region ) { next; }
+            $$region{from} = $from;
+            $$region{to}   = $to;
+            push @{$$opts{regions}{$chr}}, $region;
+        }
+    }
+}
+
+

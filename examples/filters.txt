@@ -1,0 +1,150 @@
+# Examples of user-defined filters. Edit and run with -f filters.txt.
+# The examples below are self-explanatory. Notice the use of the predefined
+#  variables ($PASS, $FAIL, $MATCH, $RECORD) and methods (error).
+
+
+# In this example, a minimum value of AF1=0.1 is required
+{
+    tag  => 'INFO/AF1',                       # The VCF tag to apply this filter on
+        name => 'MinAF',                          # The filter ID
+        desc => 'Minimum AF1 [0.01]',             # Description for the VCF header
+        test => sub { return $MATCH < 0.01 ? $FAIL : $PASS },
+},
+
+
+# Filter all indels (presence of INDEL tag is tested)
+{
+    tag      => 'INFO/INDEL',
+    apply_to => 'indels',         # Can be one of SNPs, indels, all. Default: [All]
+    name     => 'Indel',
+    desc     => 'INDEL tag present',
+    test     => sub { return $FAIL },
+},
+
+
+# Only loci with enough reads supporting the variant will pass the filter
+{
+    tag      => 'INFO/DP4',
+    name     => 'FewAlts',
+    desc     => 'Too few reads supporting the variant',
+    apply_to => 'SNPs',
+    test     => sub {
+        if ( !($MATCH =~ /^([^,]+),([^,]+),([^,]+),(.+)$/) )
+        {
+            error("Could not parse INFO/DP4: $CHROM:$POS [$MATCH]");
+        }
+        if ( 0.1*($1+$2) > $3+$4  ) { return $PASS; }
+        return $FAIL;
+    },
+},
+
+# Example of filtering based on genotype columns and the QUAL column
+{
+    tag      => 'FORMAT/PL',
+    name     => 'NoHets',
+    desc     => 'Inbred homozygous mouse, no hets expected',
+    apply_to => 'SNPs',
+    test     => sub {
+            for my $pl (@$MATCH)
+            {
+                my @pls = split(/,/,$pl);
+                if ( $pls[1]<$pls[0] && $pls[1]<$pls[2] ) { return $FAIL; }
+            }
+        return $PASS;
+    },
+},
+
+
+# This example splits the four PV4 values into four tags names PV0, PV1, PV2 and PV3. 
+#   Note the use of the 'header' key, and the $RECORD and $VCF variables.
+{
+    header   => [ 
+                    qq[key=INFO,ID=PV0,Number=1,Type=Float,Description="P-value for strand bias"],
+                    qq[key=INFO,ID=PV1,Number=1,Type=Float,Description="P-value for baseQ bias"],
+                    qq[key=INFO,ID=PV2,Number=1,Type=Float,Description="P-value for mapQ bias"],
+                    qq[key=INFO,ID=PV3,Number=1,Type=Float,Description="P-value for tail distance bias"] 
+                ], 
+    tag      => 'INFO/PV4',
+    name     => 'SplitPV4',
+    desc     => 'Split PV4',
+    apply_to => 'all',
+    test     => sub {
+        my @vals = split(/,/,$MATCH);
+        $$RECORD[7] = $VCF->add_info_field($$RECORD[7],'PV0'=>$vals[0],'PV1'=>$vals[1],'PV2'=>$vals[2],'PV3'=>$vals[3]);
+        return $PASS;
+    },
+},
+
+# Do whatever you want with every record and edit it according to your needs. This silly
+#   example removes the tag SILLY in records where ID is set and depth is bigger than 5.
+{
+    tag      => 'Dummy',
+    test     => sub {
+        if ( $$RECORD[2] eq '.' ) { return $PASS; } # Modify only lines with ID
+        my $dp = $vcf->get_info_field($$RECORD[7],'DP');
+        if ( $dp>5 ) { $$RECORD[7] = $VCF->add_info_field($$RECORD[7],'SILLY'=>undef); }
+        return $PASS;
+    },
+}
+
+
+# Filter records with the value XY absent or not equal to 42
+{
+    tag      => 'Dummy',
+    header   => [
+        qq[key=FILTER,ID=XY,Description="XY not OK"],
+    ],
+    test     => sub {
+        my $xy      = $VCF->get_info_field($$RECORD[7],'XY');
+        my $is_bad  = ( !defined $xy or $xy!=42 ) ? 1 : 0;
+        $$RECORD[6] = $VCF->add_filter($$RECORD[6],'XY'=>$is_bad);
+        return $PASS;
+    },
+},
+
+
+# Annotate INFO field with SINGLETON flag when one and only one sample is different from the reference
+{
+    header   => [ 
+        qq[key=INFO,ID=SINGLETON,Number=0,Type=Flag,Description="Only one non-ref sample"],
+    ],
+    tag      => 'FORMAT/GT',
+    name     => 'Dummy',
+    desc     => 'Dummy',
+    test     => sub {
+        my $nalt = 0;
+        for my $gt (@$MATCH)
+        {
+            my @gt = $VCF->split_gt($gt);
+            for my $allele (@gt)
+            {
+                if ( $allele ne 0 && $allele ne '.' ) { $nalt++; last; }
+            }
+            if ( $nalt>1 ) { last; }
+        }
+        if ( $nalt==1 ) { $$RECORD[7] = $VCF->add_info_field($$RECORD[7],'SINGLETON'=>''); }
+        return $PASS;
+    },
+},
+
+
+# Set genotypes to unknown ("." or "./." depending on ploidy) when coverage is low (by Shane McCarthy).
+{
+    tag      => 'FORMAT/DP',
+    name     => 'MinSampleDP',
+    desc     => 'Genotypes set to . for samples with DP < 2',
+    apply_to => 'all',
+    test     => sub {
+        my $i = 8;
+        for my $dp (@$MATCH)
+        {
+            $i++;
+            next unless ($dp<2);
+            my @format = split(/:/,$$RECORD[$i]);
+            $format[0] = $format[0] =~ /\// ? "./." : ".";
+            $$RECORD[$i] = join(":",@format);
+        }
+        return $PASS;
+    },
+},
+

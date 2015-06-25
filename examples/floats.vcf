@@ -1,0 +1,10 @@
+##fileformat=VCFv4.1
+##INFO=<ID=FLOATTAG,Number=1,Type=Float,Description="Sample float tag">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##reference=file:/lustre/scratch105/projects/g1k/ref/main_project/human_g1k_v37.fasta
+##contig=<ID=19,length=59128983,md5=1aacd71f30db8e561810913e0b72636d,species="Homo Sapiens">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA00001
+19	14370	.	G	A	29	PASS	FLOATTAG=0.0001	GT	0|0
+19	14371	.	G	A	29	PASS	FLOATTAG=1e-4	GT	0|0
+19	14372	.	G	A	29	PASS	FLOATTAG=1E-4	GT	0|0
+19	14373	.	G	A	29	PASS	FLOATTAG=1e4	GT	0|0

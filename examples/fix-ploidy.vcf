@@ -1,0 +1,60 @@
+##fileformat=VCFv4.1
+##samtoolsVersion=0.1.16-dev (r969:252)
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+##INFO=<ID=DP4,Number=4,Type=Integer,Description="# high-quality ref-forward bases, ref-reverse, alt-forward and alt-reverse bases">
+##INFO=<ID=MQ,Number=1,Type=Integer,Description="Root-mean-square mapping quality of covering reads">
+##INFO=<ID=FQ,Number=1,Type=Float,Description="Phred probability of all samples being the same">
+##INFO=<ID=AF1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele frequency (assuming HWE)">
+##INFO=<ID=AC1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele count (no HWE assumption)">
+##INFO=<ID=G3,Number=3,Type=Float,Description="ML estimate of genotype frequencies">
+##INFO=<ID=HWE,Number=1,Type=Float,Description="Chi^2 based HWE test P-value based on G3">
+##INFO=<ID=PV4,Number=4,Type=Float,Description="P-values for strand bias, baseQ bias, mapQ bias and tail distance bias">
+##INFO=<ID=PC2,Number=2,Type=Integer,Description="Phred probability of the nonRef allele frequency in group1 samples being larger (,smaller) than in group2.">
+##INFO=<ID=PCHI2,Number=1,Type=Float,Description="Posterior weighted chi^2 P-value for testing the association between group1 and group2 samples.">
+##INFO=<ID=QCHI2,Number=1,Type=Integer,Description="Phred scaled PCHI2.">
+##INFO=<ID=PR,Number=1,Type=Integer,Description="# permutations yielding a smaller PCHI2.">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=GL,Number=3,Type=Float,Description="Likelihoods for RR,RA,AA genotypes (R=ref,A=alt)">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="# high-quality bases">
+##FORMAT=<ID=SP,Number=1,Type=Integer,Description="Phred-scaled strand bias P-value">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="List of Phred-scaled genotype likelihoods, number of values is (#ALT+1)*(#ALT+2)/2">
+##source_20111007.1=/software/vertres/codebase/scripts/vcf-annotate -f +/D=1200
+##FILTER=<ID=StrandBias,Description="Min P-value for strand bias (INFO/PV4) [0.0001]">
+##FILTER=<ID=EndDistBias,Description="Min P-value for end distance bias (INFO/PV4) [0.0001]">
+##FILTER=<ID=MaxDP,Description="Maximum read depth (INFO/DP or INFO/DP4) [1200]">
+##FILTER=<ID=BaseQualBias,Description="Min P-value for baseQ bias (INFO/PV4) [0]">
+##FILTER=<ID=MinMQ,Description="Minimum RMS mapping quality for SNPs (INFO/MQ) [10]">
+##FILTER=<ID=Qual,Description="Minimum value of the QUAL field [10]">
+##FILTER=<ID=MinAB,Description="Minimum number of alternate bases (INFO/DP4) [2]">
+##FILTER=<ID=VDB,Description="Minimum Variant Distance Bias (INFO/VDB) [0]">
+##FILTER=<ID=GapWin,Description="Window size for filtering adjacent gaps [3]">
+##FILTER=<ID=MapQualBias,Description="Min P-value for mapQ bias (INFO/PV4) [0]">
+##FILTER=<ID=SnpGap,Description="SNP within INT bp around a gap to be filtered [10]">
+##FILTER=<ID=MinDP,Description="Minimum read depth (INFO/DP or INFO/DP4) [2]">
+##FILTER=<ID=RefN,Description="Reference base is N []">
+##FILTER=<ID=HWE,Description="Minimum P-value for HWE (plus F<0) (INFO/HWE and INFO/G3) [0.0001]">
+##source_20111007.2=/software/vertres/codebase/scripts/vcf-annotate -f +/D=1200
+##source_20120109.1=vcf-subset(r660) -c QTL190284,QTL190301,QTL190321,QTL190576,QTL190627,QTL190628
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	M1	M2	F3	F4	M5	M6
+20	61098	.	C	A,T	999	PASS	AC1=41;AF1=0.2104;DP4=209,284,67,76;DP=658;FQ=999;MQ=45;PV4=0.39,4.4e-10,0.0034,0.2	GT:PL:DP:SP:GQ	0/1:0,9,72,5,6,7:3:212:12	0/0:0,15,140,5,6,7:5:458752:18	1:147,0,5:7:384:24	0:0,131,5:5:208:18	0/0:0,9,83,5,6,7:3:392:12	0/0:0,6,56,5,6,7:2:204:9
+20	61270	.	A	T	93	PASS	AC1=5;AF1=0.02733;DP4=149,185,5,10;DP=398;FQ=93.1;MQ=43;PV4=0.44,3.5e-05,0.028,1	GT:PL:DP:SP:GQ	0/0:8,14,58:3:0:19	0/0:0,6,52:2:0:19	0/0:0,6,56:2:0:19	0/0:0,15,117:5:0:28	0/0:0,6,45:2:0:19	0/0:0,12,87:4:0:25
+20	61275	.	T	G	14.5	PASS	AC1=14;AF1=0.07104;DP4=76,141,1,24;DP=345;FQ=14.8;MQ=43;PV4=0.001,4e-16,2.4e-07,0.39	GT:PL:DP:SP:GQ	0/0:0,3,13:1:16908804:12	0/0:0,3,28:1:0:12	0/0:8,0,41:3:201985031:3	0/0:0,12,97:4:134480904:21	0/0:0,6,49:2:117901063:15	0/0:0,9,67:3:33686020:18
+20	61282	.	T	C	120	PASS	AC1=35;AF1=0.1794;DP4=50,118,1,30;DP=333;FQ=121;G3=0.6049,0.3951,2.481e-10;HWE=0.0152;MQ=44;PV4=0.0012,1.1e-08,5.7e-11,1	GT:PL:DP:SP:GQ	0/1:15,3,0:1:17302017:6	0/0:0,6,51:2:0:10	0/1:6,0,31:3:437393682:4	0/0:0,6,57:2:134283524:10	0/1:7,0,19:2:404167697:5	0/1:16,0,20:2:67633410:13
+20	61795	.	G	A	999	PASS	AC1=63;AF1=0.3239;DP4=193,313,105,127;DP=753;FQ=999;MQ=48;PV4=0.075,4e-23,2.6e-26,1	GT:PL:DP:SP:GQ	0/0:0,27,203:9:-1598497894:27	0/0:0,21,174:7:50331648:21	0/0:0,45,229:15:0:45	0/0:0,27,199:9:1056977028:27	0/0:0,24,182:8:0:24	0/0:0,9,85:3:1678500058:10
+20	62731	.	C	A	999	PASS	AC1=24;AF1=0.1207;DP4=326,391,40,53;DP=846;FQ=999;MQ=49;PV4=0.74,6.3e-14,5.2e-07,0.44	GT:PL:DP:SP:GQ	0/0:0,27,194:9:134349316:33	0/0:0,24,194:8:0:30	0/0:0,18,141:6:505290270:24	0/0:0,30,201:10:16908801:36	0/0:0,18,153:6:505290270:24	0/0:0,33,202:11:67175432:39
+20	63008	.	C	A	122	PASS	AC1=2;AF1=0.01078;DP4=303,374,3,7;DP=692;FQ=122;MQ=49;PV4=0.52,0.0011,0.093,1	GT:PL:DP:SP:GQ	0/0:0,42,255:14:67371265:59	0/0:0,15,128:5:0:32	0/0:0,15,136:5:505290270:32	0/0:0,39,251:13:67634177:56	0/0:0,15,111:5:505290270:32	0/0:0,27,200:9:33818632:44
+20	63231	.	T	A	999	PASS	AC1=5;AF1=0.02753;DP4=289,324,7,18;DP=652;FQ=999;MQ=49;PV4=0.067,8.8e-11,0.004,0.49	GT:PL:DP:SP:GQ	0/0:0,42,246:14:0:54	0/0:0,18,141:6:0:30	0/0:0,27,209:9:0:39	0/0:0,24,186:8:0:36	0/0:0,12,110:4:0:24	0/0:0,21,145:7:0:33
+20	63244	.	A	C	999	PASS	AC1=37;AF1=0.1905;DP4=273,269,66,56;DP=670;FQ=999;MQ=49;PV4=0.48,4.1e-21,2.5e-21,1	GT:PL:DP:SP:GQ	0/0:0,36,209:12:858855379:39	0/0:0,21,174:7:7:24	0/0:0,27,198:9:0:30	0/0:0,24,184:8:1055941246:27	0/0:0,15,132:5:0:18	0/0:0,21,159:7:203312940:24
+20	63328	.	A	C	26.4	PASS	AC1=1;AF1=0.006786;DP4=439,259,2,3;DP=711;FQ=26.4;MQ=49;PV4=0.37,0.00092,0.2,0.31	GT:PL:DP:SP:GQ	0/0:0,42,242:14:0:61	0/0:0,12,110:4:0:31	0/0:0,36,231:12:0:55	0/0:0,36,226:12:0:55	0/0:0,15,135:5:0:34	0/0:0,18,132:6:0:37
+20	63452	.	C	A	86.5	PASS	AC1=4;AF1=0.02128;DP4=399,301,5,6;DP=718;FQ=86.6;MQ=49;PV4=0.54,0.084,0.0093,0.49	GT:PL:DP:SP:GQ	0/0:0,27,200:9:-419321220:41	0/0:0,15,123:5:0:29	0/0:0,33,228:11:0:47	0/0:0,9,88:3:1060858040:23	0/0:0,24,171:8:0:38	0/0:0,15,134:5:1094576049:29
+20	63799	.	C	T	999	PASS	AC1=68;AF1=0.347;DP4=215,280,110,139;DP=796;FQ=999;MQ=49;PV4=0.88,7.1e-84,0.16,1	GT:PL:DP:SP:GQ	0/0:0,36,211:12:212:36	0/0:0,27,205:9:50331648:27	0/0:0,18,125:6:384:18	0/0:0,15,125:5:208:15	0/1:1,0,150:8:392:4	0/0:0,12,106:5:204:12
+20	63967	.	A	G	999	PASS	AC1=5;AF1=0.02598;DP4=384,427,9,10;DP=833;FQ=999;MQ=49;PV4=1,0.0053,1.9e-05,0.043	GT:PL:DP:SP:GQ	0/0:0,30,183:10:0:43	0/0:0,30,206:10:0:43	0/0:0,30,206:10:0:43	0/0:0,33,230:11:0:46	0/0:0,21,160:7:0:34	0/0:0,12,112:4:0:25
+20	65288	.	G	C	999	PASS	AC1=23;AF1=0.1172;DP4=217,304,31,52;DP=612;FQ=999;MQ=49;PV4=0.47,1.3e-40,0.001,1	GT:PL:DP:SP:GQ	0/0:0,18,155:6:212:24	0/0:0,12,113:4:0:18	0/0:0,18,144:6:384:24	0/0:0,21,155:7:208:27	0/0:0,21,176:7:392:27	0/0:0,6,63:2:204:12
+20	65900	.	G	A	999	PASS	AC1=156;AF1=0.7977;DP4=98,72,334,335;DP=857;FQ=999;MQ=46;PV4=0.086,1,2.3e-21,1	GT:PL:DP:SP:GQ	1/1:162,24,0:8:-1210247533:27	1/1:160,21,0:7:458754:24	1/1:219,30,0:10:0:33	1/1:213,30,0:10:1056438877:33	1/1:248,42,0:14:0:45	1/1:148,21,0:7:-1125025851:24
+20	65951	.	T	A	142	PASS	AC1=4;AF1=0.02096;DP4=349,437,7,6;DP=818;FQ=142;MQ=48;PV4=0.58,0.0014,0.18,1	GT:PL:DP:SP:GQ	0/0:0,18,125:6:1040080185:32	0/0:0,15,132:5:0:29	0/0:0,24,183:8:0:38	0/0:0,45,252:15:1063282696:59	0/0:0,30,217:10:0:44	0/0:0,15,101:5:1099561607:29
+20	66370	.	G	A	999	PASS	AC1=160;AF1=0.8125;DP4=76,68,292,297;DP=774;FQ=999;MQ=46;PV4=0.52,1,5.3e-34,1	GT:PL:DP:SP:GQ	1/1:255,57,0:19:0:60	1/1:193,24,0:8:131075:27	1/1:97,12,0:4:0:15	1/1:208,30,0:10:0:33	1/1:129,15,0:5:0:18	1/1:72,9,0:3:0:13
+20	67184	.	C	A	110	PASS	AC1=2;AF1=0.01039;DP4=366,477,2,10;DP=863;FQ=111;MQ=48;PV4=0.08,1,0.12,0.24	GT:PL:DP:SP:GQ	0/0:0,33,202:11:-2137326772:50	0/0:0,6,57:2:0:23	0/0:0,42,223:14:0:59	0/0:0,21,142:7:1069487242:38	0/0:0,30,181:10:0:47	0/0:0,33,201:11:1190753285:50
+20	67760	.	C	A	16.9	PASS	AC1=2;AF1=0.008593;DP4=412,444,1,5;DP=870;FQ=16.9;MQ=47;PV4=0.22,1,0.0035,1	GT:PL:DP:SP:GQ	0/0:0,42,224:14:-1076013622:60	0/0:0,9,77:3:0:27	0/0:0,45,243:15:0:63	0/0:0,21,147:7:1070943924:39	0/0:0,33,205:11:0:51	0/0:0,12,102:4:783554555:30
+20	68303	.	A	G	65.3	PASS	AC1=1;AF1=0.005274;DP4=480,351,4,5;DP=874;FQ=65.3;MQ=49;PV4=0.51,9.5e-09,0.34,1	GT:PL:DP:SP:GQ	0/0:0,33,205:11:-1062059871:53	0/0:0,33,236:11:0:53	0/0:0,33,214:11:0:53	0/0:0,27,197:9:1072683922:47	0/0:0,18,149:6:0:38	0/0:0,9,72:3:1109840439:29
+20	68618	.	G	C	62.6	PASS	AC1=2;AF1=0.01065;DP4=409,382,5,5;DP=833;FQ=62.6;MQ=49;PV4=1,1.9e-07,0.00018,0.4	GT:PL:DP:SP:GQ	0/0:0,24,176:9:1561273746:41	0/0:0,30,214:10:0:47	0/0:0,21,159:7:0:38	0/0:0,24,191:8:1056871757:41	0/0:0,15,133:5:0:32	0/0:0,18,133:6:253656329:35

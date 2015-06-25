@@ -1,0 +1,56 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+fill_an_ac($$opts{file});
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    die
+        "Usage: fill-an-ac [OPTIONS] < in.vcf >out.vcf\n",
+        "Options:\n",
+        "   -h, -?, --help                      This help message.\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = {};
+    while (my $arg=shift(@ARGV))
+    {
+        if ( -e $arg ) { $$opts{file} = $arg; next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    return $opts;
+}
+
+
+sub fill_an_ac
+{
+    my ($file) = @_;
+
+    my $vcf = $file ? Vcf->new(file=>$file) : Vcf->new(fh=>\*STDIN);
+    $vcf->parse_header();
+    $vcf->add_header_line({key=>'INFO',ID=>'AC',Number=>-1,Type=>'Integer',Description=>'Allele count in genotypes'});
+    $vcf->add_header_line({key=>'INFO',ID=>'AN',Number=>1,Type=>'Integer',Description=>'Total number of alleles in called genotypes'});
+    print $vcf->format_header();
+    $vcf->recalc_ac_an(2);
+
+    while (my $rec=$vcf->next_data_hash())
+    {
+        print $vcf->format_line($rec);
+    }
+}
+

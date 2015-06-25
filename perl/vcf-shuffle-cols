@@ -1,0 +1,89 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+concat($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "About: Reorder columns to match the order in the template VCF.\n",
+        "Usage: vcf-shuffle-cols [OPTIONS] -t template.vcf.gz file.vcf.gz > out.vcf\n",
+        "Options:\n",
+        "   -t, --template <file>            The file with the correct order of the columns.\n",
+        "   -h, -?, --help                   This help message.\n",
+        "\n";
+}
+
+sub parse_params
+{
+    my $opts = {};
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-t' || $arg eq '--template' ) { $$opts{template}=shift(@ARGV); next; }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( -e $arg ) { $$opts{file}=$arg; next }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{template}) ) { error("Missing the -t option.\n"); }
+    return $opts;
+}
+
+sub concat
+{
+    my ($opts) = @_;
+    my $tmpl = Vcf->new(file=>$$opts{template});
+    $tmpl->parse_header();
+    $tmpl->close();
+
+    my $vcf = $$opts{file} ? Vcf->new(file=>$$opts{file}) : Vcf->new(fh=>\*STDIN);
+    $vcf->parse_header();
+
+    # Check if one-to-one correspondence can be found and create a mapping
+    my @new_to_old = ();
+    for my $tcol (@{$$tmpl{columns}})
+    {
+        if ( !exists($$vcf{has_column}{$tcol}) ) { error("TODO: the column names do not match\n"); }
+    }
+    for my $vcol (@{$$vcf{columns}})
+    {
+        if ( !exists($$tmpl{has_column}{$vcol}) ) { error("TODO: the column names do not match\n"); }
+        my $new = $$tmpl{has_column}{$vcol} - 1;
+        my $old = $$vcf{has_column}{$vcol} - 1;
+        $new_to_old[$new] = $old;
+    }
+
+
+    # Output the header with modified column order
+    my $ncols = @{$$tmpl{columns}} - 1;
+    my @cols  = @{$$tmpl{columns}}[9..$ncols];
+    print $vcf->format_header(\@cols);
+
+    while (my $x=$vcf->next_data_array())
+    {
+        print $$x[0];
+        for (my $i=1; $i<=$ncols; $i++)
+        {
+            my $idx = $new_to_old[$i];
+            print "\t".$$x[$idx];
+        }
+        print "\n";
+    }
+}
+

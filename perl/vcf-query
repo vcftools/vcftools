@@ -1,0 +1,452 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+read_data($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    die
+        "Usage: vcf-query [OPTIONS] file.vcf.gz\n",
+        "Options:\n",
+        "   -c, --columns <file|list>           List of comma-separated column names or one column name per line in a file.\n",
+        "   -f, --format <string>               The default is '%CHROM:%POS\\t%REF[\\t%SAMPLE=%GT]\\n'\n",
+        "   -l, --list-columns                  List columns.\n",
+        "   -r, --region chr:from-to            Retrieve the region. (Runs tabix.)\n",
+        "       --use-old-method                Use old version of API, which is slow but more robust.\n",
+        "   -h, -?, --help                      This help message.\n",
+        "Expressions:\n",
+        "   %CHROM          The CHROM column (similarly also other columns)\n",
+        "   %GT             Translated genotype (e.g. C/A)\n",
+        "   %GTR            Raw genotype (e.g. 0/1)\n",
+        "   %INFO/TAG       Any tag in the INFO column\n",
+        "   %LINE           Prints the whole line\n",
+        "   %SAMPLE         Sample name\n",
+        "   []              The brackets loop over all samples\n",
+        "   %*<A><B>        All format fields printed as KEY<A>VALUE<B>\n",
+        "Examples:\n",
+        "   vcf-query file.vcf.gz 1:1000-2000 -c NA001,NA002,NA003\n",
+        "   vcf-query file.vcf.gz -r 1:1000-2000 -f '%CHROM:%POS\\t%REF\\t%ALT[\\t%SAMPLE:%*=,]\\n'\n",
+        "   vcf-query file.vcf.gz -f '[%GT\\t]%LINE\\n'\n",
+        "   vcf-query file.vcf.gz -f '[%GT\\ ]%LINE\\n'\n",
+        "   vcf-query file.vcf.gz -f '%CHROM\\_%POS\\t%INFO/DP\\t%FILTER\\n'\n",
+        "Notes:\n",
+        "   Please use `bcftools query` instead, this script will not be supported in future.\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = { columns=>'', format_string=>"%CHROM:%POS\t%REF[\t%SAMPLE=%GT]\n" };
+    while (defined(my $arg=shift(@ARGV)))
+    {
+        if (                 $arg eq '--use-old-method' ) { $$opts{use_old_method}=1; next }
+        if ( $arg eq '-f' || $arg eq '--format' ) { $$opts{format_string}=shift(@ARGV); next }
+        if ( $arg eq '-c' || $arg eq '--columns' ) { $$opts{columns}=shift(@ARGV); next }
+        if ( $arg eq '-l' || $arg eq '--list-columns' ) { $$opts{list_columns}=1; next }
+        if ( $arg eq '-r' || $arg eq '--region' ) { $$opts{region}=shift(@ARGV); next }
+        if ( -e $arg or $arg=~m{^(?:ftp|http)://} ) { $$opts{file}=$arg; next; }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( !exists($$opts{region}) && exists($$opts{file}) && ($arg=~/^[^:]+:[0-9,]+-[0-9,]+$/ or $arg=~/^[^\:]+$/) ) { $$opts{region}=$arg; next; }
+        error("Unknown parameter or non-existent file \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{file}) && exists($$opts{region}) ) { error("The region cannot be used when streaming the file.\n"); }
+    if ( exists($$opts{columns}) && -e $$opts{columns} )
+    {
+        my @cols;
+        open(my $fh,'<',$$opts{columns}) or error("$$opts{columns}: $!");
+        while (my $line=<$fh>)
+        {
+            if ( $line=~/^\s*$/ ) { next; }
+            $line =~ s/^\s*//;
+            $line =~ s/\s*$//;
+            push @cols, $line;
+        }
+        close($fh);
+        $$opts{columns} = join(',', @cols);
+    }
+    return $opts;
+}
+
+sub parse_format_string
+{
+    my ($str,$hash) = @_;
+    my (@arr,%idx,$join1,$join2);
+    $str =~ s/\\n/\n/g;
+    $str =~ s/\\t/\t/g;
+    while ($str)
+    {
+        if ( !($str=~/%/) )
+        {
+            push @arr,$str;
+            last;
+        }
+
+        my $before = $`;
+        $str = $';
+
+        my $match;
+        if ( $str=~/^[*](.)(.)/ )
+        {
+            $match = '*'; $join1=$1; $join2=$2;
+        }
+        elsif ( $str=~m{([A-Za-z0-9/_]+)} )
+        {
+            $match = $1;
+        }
+        else { error("FIXME: $str"); }
+
+        if ( defined $before && $before ne '' ) { push @arr,$before; }
+        push @arr,'.';      # If the tag is not present in the VCF, a missing value ('.') will be printed instead.
+        if ( exists($idx{$match}) ) 
+        { 
+            warn("The tag \"$match\" given multiple times, only the last occurance will be used\n"); 
+        }
+        $idx{$match} = $#arr;
+        $str = $';
+    }
+    for (my $i=0; $i<@arr; $i++)
+    {
+        $arr[$i] =~ s/\\{1}//g;
+    }
+    $$hash{format} = \@arr;
+    $$hash{idx}    = \%idx;
+    $$hash{join1}  = $join1;
+    $$hash{join2}  = $join2;
+}
+
+sub parse_format
+{
+    my ($opts,$cols) = @_;
+
+    $$opts{before} = {};
+    $$opts{repeat} = {};
+    $$opts{after}  = {};
+
+    my ($before,$repeat,$after);
+
+    my $str = $$opts{format_string};
+    $before = $str;
+
+    if ( $str=~/\[([^\]]+)\]/ )
+    {
+        $before = $`;
+        $repeat = $1;
+        $after  = $';
+    }
+    if ( $before ) { parse_format_string($before,$$opts{before}); }
+    if ( $repeat ) { parse_format_string($repeat,$$opts{repeat}); }
+    if ( $after ) { parse_format_string($after,$$opts{after}); }
+}
+
+sub copy_array
+{
+    my ($arr) = @_;
+    my @out;
+    for my $item (@$arr) { push @out,$item; }
+    return @out;
+}
+
+sub get_columns
+{
+    my ($vcf) = @_;
+    my @cols = ();
+    my $ncols = @{$$vcf{columns}};
+    for (my $i=9; $i<$ncols; $i++)
+    {
+        push @cols, $$vcf{columns}[$i];
+    }
+    return \@cols;
+}
+
+sub get_sample_idxs
+{
+    my ($vcf,@samples) = @_;
+    my @idxs;
+    for my $sample (@samples)
+    {
+        if ( !exists($$vcf{has_column}{$sample}) ) { error("No such sample: [$sample]\n"); }
+        push @idxs, $$vcf{has_column}{$sample} - 1;
+    }
+    return @idxs;
+}
+
+sub list_columns
+{
+    my ($opts) = @_;
+    my $cols = get_columns($$opts{vcf});
+    for my $col (@$cols) { print "$col\n"; }
+}
+
+sub read_data
+{
+    my ($opts) = @_;
+
+    if ( exists($$opts{use_old_method}) )
+    {
+        read_data_slow_hash($opts);
+        return;
+    }
+
+    my %args = ( print_header=>1 );
+    if ( $$opts{region} ) { $args{region} = $$opts{region}; }
+    if ( exists($$opts{file}) ) { $args{file} = $$opts{file}; }
+    else { $args{fh} = \*STDIN; }
+
+    my $vcf = Vcf->new(%args);
+    $$opts{vcf} = $vcf;
+    $vcf->parse_header();
+
+    if ( $$opts{list_columns} ) { list_columns($opts); exit; }
+
+    my @cols = split(/,/,$$opts{columns});
+    if ( !@cols ) { @cols = @{get_columns($$opts{vcf})}; }
+    my @sample_idxs = get_sample_idxs($$opts{vcf},@cols);
+
+    # The hash opts will be filled with the keys 'before','repeat','after' with formatting information
+    parse_format($opts);
+    while (my $line=$vcf->next_line())
+    {
+        my $x = $vcf->next_data_array($line);
+
+        # Fill everything what comes before the repeat []
+        if ( $$opts{before} )
+        {
+            my (@out) = copy_array($$opts{before}{format});
+            while (my ($fieldname,$idx) = each %{$$opts{before}{idx}})
+            {
+                if ( $fieldname eq 'LINE' ) { chomp($line); $out[$idx] = $line; }
+                elsif ( exists($$vcf{has_column}{$fieldname}) ) { $out[$idx] = $$x[$$vcf{has_column}{$fieldname}-1]; }
+                elsif ( substr($fieldname,0,5) eq 'INFO/' )
+                {
+                    $out[$idx] = $vcf->get_info_field($$x[7],substr($fieldname,5));
+                }
+            }
+            for (my $i=0; $i<@out; $i++) { if (!defined($out[$i])) { $out[$i]='.'; } }
+            print join('',@out);
+        }
+
+        # Fill the repeaty stuff (the sample columns)
+        if ( $$opts{repeat} )
+        {
+            my @repeats;
+            for my $sample_idx (@sample_idxs) { push @repeats, [ copy_array($$opts{repeat}{format}) ]; }
+
+            my @alt;
+            if ( exists($$opts{repeat}{idx}{GT}) )
+            {
+                @alt = split(/,/,$$x[4]);
+            }
+            while (my ($fieldname,$idx) = each %{$$opts{repeat}{idx}})
+            {
+                if ( $fieldname eq '*' )
+                {
+                    my $sep1 = $$opts{repeat}{join1};
+                    my $sep2 = $$opts{repeat}{join2};
+                    my @fmt = split(/:/,$$x[8]);
+                    for (my $i=0; $i<@sample_idxs; $i++)
+                    {
+                        my $sample_idx = $sample_idxs[$i];
+                        my @tmp;
+                        my $j = 0;
+                        for my $value (split(/:/,$$x[$sample_idx])) 
+                        { 
+                            push @tmp, $fmt[$j++].$sep1.$value; 
+                        }
+                        $repeats[$i][$idx] = join($sep2,@tmp);
+                    }
+                    next;
+                }
+
+                my $fmt_idx = $vcf->get_tag_index($$x[8],$fieldname eq 'GTR' ? 'GT' : $fieldname,':');
+                for (my $i=0; $i<@sample_idxs; $i++)
+                {
+                    my $sample_idx = $sample_idxs[$i];
+                    if ( $fmt_idx!=-1 )
+                    {
+                        my $value = $vcf->get_field($$x[$sample_idx],$fmt_idx);
+                        if ( $fieldname eq 'GT' )
+                        {
+                            $value = $vcf->decode_genotype($$x[3],\@alt,$value);
+                        }
+                        $repeats[$i][$idx] = $value;
+                    }
+                }
+            }
+            if ( exists($$opts{repeat}{idx}{SAMPLE}) )
+            {
+                my $idx = $$opts{repeat}{idx}{SAMPLE};
+                for (my $i=0; $i<@cols; $i++) { $repeats[$i][$idx] = $cols[$i] }
+            }
+
+            for my $repeat (@repeats)
+            {
+                for (my $i=0; $i<@$repeat; $i++) { if (!defined($$repeat[$i])) { $$repeat[$i]='.'; } }
+                print join('',@$repeat);
+            }
+        }
+
+        # Fill everything what comes after the repeat ([])
+        if ( $$opts{after} )
+        {
+            my (@out) = copy_array($$opts{after}{format});
+            while (my ($fieldname,$idx) = each %{$$opts{after}{idx}})
+            {
+                if ( $fieldname eq 'LINE' ) { chomp($line); $out[$idx] = $line; }
+                elsif ( exists($$vcf{has_column}{$fieldname}) ) { $out[$idx] = $$x[$$vcf{has_column}{$fieldname}-1]; }
+                elsif ( substr($fieldname,0,5) eq 'INFO/' )
+                {
+                    $out[$idx] = $vcf->get_info_field($$x[7],substr($fieldname,5));
+                }
+            }
+            for (my $i=0; $i<@out; $i++) { if (!defined($out[$i])) { $out[$i]='.'; } }
+            print join('',@out);
+        }
+    }
+}
+
+
+sub read_data_slow_hash
+{
+    my ($opts) = @_;
+
+    my %args = ( print_header=>1 );
+    if ( $$opts{region} ) { $args{region} = $$opts{region}; }
+    if ( exists($$opts{file}) ) { $args{file} = $$opts{file}; }
+    else { $args{fh} = \*STDIN; }
+
+    my $vcf = Vcf->new(%args);
+    $$opts{vcf} = $vcf;
+    $vcf->parse_header();
+
+    if ( $$opts{list_columns} ) { list_columns($opts); exit; }
+
+    my @cols = split(/,/,$$opts{columns});
+    if ( !@cols ) { @cols = @{get_columns($$opts{vcf})}; }
+
+    # The hash opts will be filled with the keys 'before','repeat','after' with formatting information
+    parse_format($opts);
+
+    while (my $line=$vcf->next_line())
+    {
+        my $x=$vcf->next_data_hash($line);
+
+        # Fill everything what comes before the repeat []
+        # Code repetition and not very nice, should be changed at some point...
+        if ( $$opts{before} )
+        {
+            my (@out) = copy_array($$opts{before}{format});
+            while (my ($colname,$idx) = each %{$$opts{before}{idx}})
+            {
+                if ( $colname eq 'LINE' ) { chomp($line); $out[$idx] = $line; next; }
+                if ( $colname eq 'ALT' ) { $out[$idx] = join(',',@{$$x{ALT}}); next; }
+                if ( $colname eq 'FILTER' ) { $out[$idx] = join(';',@{$$x{FILTER}}); next; }
+                if ( $colname=~m{INFO/(.+)} ) 
+                { 
+                    if ( exists($$x{INFO}{$1}) && !defined($$x{INFO}{$1}) )
+                    {
+                        # It is a flag
+                        $out[$idx] = 'True';
+                    }
+                    else
+                    {
+                        $out[$idx] = $$x{INFO}{$1}; 
+                    }
+                    next; 
+                }
+                if ( exists($$x{$colname}) ) { $out[$idx] = $$x{$colname}; }
+            }
+            for (my $i=0; $i<@out; $i++) { if (!defined($out[$i])) { $out[$i]='.'; } }
+            print join('',@out);
+        }
+
+        # Fill the repeaty stuff (the sample columns)
+        if ( $$opts{repeat} )
+        {
+            for my $col (@cols)
+            {
+                my ($alleles,$seps,$is_phased,$is_empty) = $vcf->parse_haplotype($x,$col);
+                my (@out) = copy_array($$opts{repeat}{format});
+                while (my ($colname,$idx) = each %{$$opts{repeat}{idx}})
+                {
+                    if ( exists($$x{gtypes}{$col}{$colname}) ) { $out[$idx] = $$x{gtypes}{$col}{$colname}; }
+                    elsif ( exists($$x{$colname}) ) { $out[$idx] = $$x{$colname}; }
+                }
+                if ( exists($$opts{repeat}{idx}{SAMPLE}) ) { $out[$$opts{repeat}{idx}{SAMPLE}] = $col; }
+                if ( exists($$opts{repeat}{idx}{GTR}) ) 
+                { 
+                    $out[$$opts{repeat}{idx}{GTR}] = $$x{gtypes}{$col}{GT};
+                }
+                if ( exists($$opts{repeat}{idx}{GT}) ) 
+                { 
+                    my $tmp = $$alleles[0];
+                    for (my $i=0; $i<@$seps; $i++) { $tmp .= $$seps[$i].$$alleles[$i+1]; }
+                    $out[$$opts{repeat}{idx}{GT}] = $tmp;
+                }
+                if ( exists($$opts{repeat}{idx}{'*'}) )
+                {
+                    my $sep1 = $$opts{repeat}{join1};
+                    my $sep2 = $$opts{repeat}{join2};
+                    my @tmp;
+                    while (my ($key,$value)=each(%{$$x{gtypes}{$col}}))
+                    {
+                        if ( $key eq 'GT' )
+                        { 
+                            $value = $$alleles[0];
+                            for (my $i=0; $i<@$seps; $i++) { $value .= $$seps[$i].$$alleles[$i+1]; }
+                        }
+                        push @tmp, $key.$sep1.$value;
+                    }
+                    my $idx = $$opts{repeat}{idx}{'*'};
+                    $out[$idx] = join($sep2,@tmp);
+                }
+                for (my $i=0; $i<@out; $i++) { if (!defined($out[$i])) { $out[$i]='.'; } }
+                print join('',@out);
+            }
+        }
+
+        # Fill everything what comes after the repeat ([])
+        if ( $$opts{after} )
+        {
+            my (@out) = copy_array($$opts{after}{format});
+            while (my ($colname,$idx) = each %{$$opts{after}{idx}})
+            {
+                if ( $colname eq 'LINE' ) { chomp($line); $out[$idx] = $line; next; }
+                if ( $colname eq 'ALT' ) { $out[$idx] = join(',',@{$$x{ALT}}); next; }
+                if ( $colname eq 'FILTER' ) { $out[$idx] = join(';',@{$$x{FILTER}}); next; }
+                if ( $colname=~m{INFO/(.+)} ) 
+                { 
+                    if ( exists($$x{INFO}{$1}) && !defined($$x{INFO}{$1}) )
+                    {
+                        # It is a flag
+                        $out[$idx] = 'True';
+                    }
+                    else
+                    {
+                        $out[$idx] = $$x{INFO}{$1}; 
+                    }
+                    next; 
+                }
+                if ( exists($$x{$colname}) ) { $out[$idx] = $$x{$colname}; }
+            }
+            for (my $i=0; $i<@out; $i++) { if (!defined($out[$i])) { $out[$i]='.'; } }
+            print join('',@out);
+        }
+    }
+}
+
+

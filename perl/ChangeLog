@@ -1,0 +1,111 @@
+2012-05-02 15:53  petr.danecek@sanger
+    * vcf-consensus
+    * vcf-indel-stats
+    * vcf-compare: handle spaces in file names
+
+2012-02-23 09:45  petr.danecek@sanger
+    * vcf-merge: redundant ALT alleles are no longer removed by default but only with -t.
+    * vcf-annotate: 
+        - set the FILTER column, remove and annotate in one go (e.g. ID)
+        - support of genotype columns in user filters
+        - new --fill-type option
+
+2012-01-23 10:41  petr.danecek@sanger
+    * Notable changes since the last release:
+        - fill-fs: new script for annotating VCFs with flanking sequence
+        - fill-ref-md5: new script for annotating VCFs with 'reference' and 'contig' tags
+            recommended by VCFv4.1
+        - vcf-annotate: now also removes annotations and can apply user-defined filters
+        - vcf-compare: changed output format, more stats reported and plots the results
+        - vcf-fix-newlines: new script for fixing newline representation
+        - vcf-phased-join: new script for joining pre-phased VCFs
+        - vcf-query: significant speed up for some type of queries
+        - vcf-sort: chromosomal ordering (1,2,10,MT,X rather than 1,10,2,MT,X) with new
+            versions of unix sort
+        - Vcf.pm: new set of API methods for faster access
+        - some of the tools now work also with remote files 
+
+2011-04-04 14:00  petr.danecek@sanger
+    * VCFtools now support VCFv4.1
+    * fill-ref-md5: New tool backfilling sequence MD5s into VCF header
+    * Renamed merge-vcf, compare-vcf etc. to consistent naming vcf-merge, vcf-compare
+    * vcf-merge: Now merging also GL and other Number=[AG] tags
+    * vcf-compare: Comparing indel haplotypes
+
+2011-02-21 12:31  petr.danecek@sanger
+    * vcf-stats: new -s option to speed up parsing when stats computed for selected samples only
+    * merge-vcf: allow to merge arbitrary chunks; -c option now deprecated, use -r instead
+    * compare-vcf: change in output format and more detailed comparison
+
+2011-02-17 17:36  petr.danecek@sanger
+    * vcf-stats: allow querying stats of individual samples
+
+2011-02-16 12:07  petr.danecek@sanger
+    * vcf-stats: major revision
+    * vcf-annotate: more filtering options
+
+2011-02-04 14:43  petr
+    * merge-vcf: if possible, calculate AC,AN even for sites without genotypes
+
+2011-02-03 15:04  petr
+    * merge-vcf: fixed a bug introduced by the previous fix.
+
+2011-02-02 21:02  petr
+    * merge-vcf: fixed a bug in merging indel ALTs. Only VCFs without samples were affected. 
+
+2011-01-28 15:38  petr
+    * vcf-subset: new option for printing rows with calls private to the subset group
+
+2011-01-24 13:38  petr
+    * Vcf.pm: uppercase floating point number expressions (such as
+    1.0382033E-6) now pass validation
+
+2011-01-20 08:28  petr
+    * vcf-concat: print header also for empty VCFs with the -s option
+
+2011-01-04 08:59  petr
+    * vcf-isec, vcf-sort, Vcf.pm: replaced "zcat" by "gunzip -c"
+
+2010-12-22 14:18  petr
+    * vcf-annotate: New --SnpCluster option
+    * Vcf.pm: new sub add_filter()
+
+2010-12-15 13:44  petr
+    * vcf-isec: By default output records from all files with unique positions
+    (duplicate records from the same file still should be printed). With the -o
+    switch, only positions from the left-most file will be printed.
+
+2010-12-09 14:48  petr
+    * query-vcf: Output 'True' for Flag tags when present and . when absent
+    * vcf-annotate: Fix: the command line eats quotes when they are not escaped
+
+2010-12-08 12:06  petr
+    * Vcf.pm: throw an error when tabix fails.
+    * query-vcf: enable streaming of files when region is not specified.
+
+2010-12-02 11:53  petr
+    * Vcf.pm: allow ALT alleles which are not present in samples
+    * vcf-isec: Multiple files can be created simultaneously with all possible
+    isec combinations. Suitable for Venn Diagram analysis.
+    * merge-vcf: Do not remove ALT alleles if no samples are present
+    * merge-vcf: Do FILTER merging more intelligently.
+    * merge-vcf: Join the QUAL column: use average value weighted by the number of samples.
+
+2010-11-28 08:34  petr
+    * vcf-concat: Partial sort
+    * vcf-validator: Added -u option
+    * VcfStats.pm: dump_counts
+
+2010-11-27 13:04  petr
+    * vcf-subset: Filter variants by type
+
+2010-11-26 09:08  petr
+    * vcf-annotate: Added possibility to read header descriptions from a file
+
+2010-11-24 13:25  petr
+    * Fix in Vcf.pm:fill_ref_alt_mapping. VCF files processed with merge-vcf were
+    affected when containing IDs in the ALT column.
+
+2010-11-23 13:12  petr
+    * Major revamp of Vcf.pm to allow better inheritance. Problems likely.
+

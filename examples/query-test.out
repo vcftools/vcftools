@@ -1,0 +1,6 @@
+1:100100	ref=G	alt=C	qual=0	1	A=G|C	B=G/C
+1:100200	ref=G	alt=C	qual=0	1	A=G|C	B=G/G
+1:100300	ref=G	alt=C	qual=0	1	A=C/C	B=./.
+1:100400	ref=C	alt=G,T	qual=35	1	A=G/G	B=C/T
+1:100500	ref=A	alt=G	qual=0	1	A=G/G	B=A/A
+1:100600	ref=C	alt=G	qual=0	1	A=G/G	B=C/C

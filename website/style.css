@@ -1,0 +1,281 @@
+/* Created by Igor Penjivrag (www.colorlightstudio.com) - 12.11.2006 */
+
+body {
+	margin: 0px;
+	background: url(img/top_bg_blue.png);
+	background-repeat: repeat-x;
+	font-family: Verdana, Arial, sans-serif;
+   font-size: 12px;
+}
+
+p {
+	line-height: 17px;
+	margin: 11px 0 10px 0;
+	padding: 0px;
+}
+
+h2 {
+	color: #367ea5;
+	margin:0px;
+	padding:0px;
+	font-size: 18px;
+}
+
+h3 {
+	color: #367ea5;
+	margin:0px;
+	padding:0px;
+	font-size: 15px;
+}
+
+ul {
+	font-size: 12px;
+	margin:0;
+	padding:0;
+	list-style-image: url(img/bullet.gif);
+}
+
+a {
+	color: #8B0000;
+}
+
+a:hover {
+	text-decoration: none;
+}
+
+.codebox {
+	background: #EEEEEE;
+	border: 1px solid #DDD;
+	padding: 1px;
+	padding-left: 5px;
+	font-family: courier;
+	font-size: 8pt;
+	margin-bottom: 1.2em;
+}
+
+.cmd {
+    text-align: center;
+    color: #367EA6;
+    font-style: italic;
+}
+
+.usageBox {
+    position: relative;
+    text-align: right;
+}
+
+.usageToggle {
+    cursor: pointer;
+    color: #367EA6;
+    font-size: smaller;
+}
+
+.usageText {
+    background-color: #ddd;
+    padding: 1em;
+    text-align: left;
+    border: solid #aaa 1px;
+    font-family: monospace;
+    font-size: 7pt;
+}
+
+blockquote{
+	background: #F7FDE3;
+	color: #606060;
+	padding: 10px;
+}
+
+
+/**** Main Container ***/
+
+
+#wrap {
+       margin-left: auto;
+       margin-right: auto;
+       width: 730px;
+}
+
+
+/**** Top ***/
+
+
+#top {
+	width: 100%;
+	height: 88px;
+	color: #fff;
+	background: #000 url(img/top_bg_blue.png);
+	overflow:hidden;
+}
+
+#top h2 {
+	color: White;
+	letter-spacing: 3px;
+	font-size: 2.4em;
+	font-weight: normal;
+	position: relative;
+	margin: 0px;
+	top:33px;
+	display:block;
+	float:left;
+	padding-left: 40px;
+}
+
+#top h2 a {
+	color: white;
+	text-decoration: none;
+}
+
+#top h2 a:hover {
+        color: #000000;
+}
+
+
+/**** Main Menu ***/
+
+
+#menu {
+	display: block;
+	float:right;
+}
+
+#menu ul {
+	margin: 0;
+	list-style: none;
+}
+
+#menu li {
+	display: block;
+	float: left;
+	white-space: nowrap;
+}
+
+#menu li a {
+	display: block;
+	padding: 55px 10px 12px;
+	text-decoration: none;
+	color: #fff;
+}
+
+* html #menu a {width:1%;}
+
+#menu li a:hover {
+	background: #000000;
+}
+
+#menu li a.current {
+	letter-spacing: 1px;
+	color: #000;
+}
+
+#menu li a.current:hover {
+	color: #fff;
+}
+
+
+/**** Content Container ***/
+
+
+#content {
+	width: 100%;
+	margin-top:30px;
+}
+
+#content h2 {
+	margin: 0;
+	padding: 10px 0 10px 0;
+}
+
+
+/**** Content ***/
+
+
+#left ul {
+	padding: 15px 0 15px 35px;
+	margin:0;
+}
+
+#left li {
+	margin-bottom:5px;
+}
+
+#left {
+	width: 65%;
+	float:left;
+	display: block;
+   margin-left: 5px;
+	display: inline;
+}
+
+
+/**** Sidebar ***/
+
+
+#right {
+	width: 30%;
+	float: right;
+	display:block;
+	margin-top: 10px;
+}
+
+#right .box {
+	width: 100%;
+	background: #F6F9FB;
+	border: 1px solid #E1E1E1;
+	padding:10px 10px 15px 10px;
+	float: right;
+}
+
+#right .box h2 {
+	font-size: 1.1em;
+	margin: 0px 0 0px 0;
+	padding:0px 0 5px 0;
+}
+
+#right .box a {
+	margin: 10px 0 10px 0;
+	color: #56677C;
+	font-size: 12px;
+}
+
+#right .box p {
+	margin: 5px 0 10px 0;
+	line-height: 15px;
+}
+
+#right .box ul {
+	padding: 0 0 7px 20px;
+	margin:10px 0 10px 0;
+}
+
+#right .box li {
+	margin-top:5px;
+}
+
+
+/**** Clear Div ***/
+
+
+#clear {
+	display: block;
+	clear: both;
+	width: 100%;
+	height:1px;
+	overflow:hidden;
+}
+
+
+/**** Footer ***/
+
+
+#footer {
+        margin: 40px auto 0 auto;
+	text-align: center;
+	border-top: dotted 1px gray;
+	padding: 20px 0 20px 0;
+	width: 70%;
+}
+
+#footer p {
+	margin: 0px;
+	padding: 0;
+}

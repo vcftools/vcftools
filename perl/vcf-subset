@@ -1,0 +1,227 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+vcf_subset($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "Usage: vcf-subset [OPTIONS] in.vcf.gz > out.vcf\n",
+        "Options:\n",
+        "   -a, --trim-alt-alleles           Remove alternate alleles if not found in the subset\n",
+        "   -c, --columns <string>           File or comma-separated list of columns to keep in the vcf file. If file, one column per row\n",
+        "   -e, --exclude-ref                Exclude rows not containing variants.\n",
+        "   -f, --force                      Proceed anyway even if VCF does not contain some of the samples.\n",
+        "   -p, --private                    Print only rows where only the subset columns carry an alternate allele.\n",
+        "   -r, --replace-with-ref           Replace the excluded types with reference allele instead of dot.\n",
+        "   -t, --type <list>                Comma-separated list of variant types to include: ref,SNPs,indels,MNPs,other.\n",
+        "   -u, --keep-uncalled              Do not exclude rows without calls.\n",
+        "   -h, -?, --help                   This help message.\n",
+        "Examples:\n",
+        "   cat in.vcf | vcf-subset -r -t indels -e -c SAMPLE1 > out.vcf\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    $0 =~ s{^.+/}{}; $0 .= "($Vcf::VERSION)";
+    my $opts = { exclude_ref=>0, keep_uncalled=>0, replace_with_ref=>0, private=>0, args=>[$0, @ARGV] };
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-t' || $arg eq '--type' ) 
+        { 
+            my %known = ( ref=>'r', SNPs=>'s', indels=>'i', MNPs=>'m', other=>'o' );
+            my $types = shift(@ARGV);
+            for my $t (split(/,/,$types))
+            {
+                if ( !(exists($known{$t})) ) { error("Unknown type [$t] with -t [$types]\n"); }
+                $$opts{types}{$known{$t}} = 1;
+            }
+            next;
+        }
+        if ( $arg eq '-a' || $arg eq '--trim-alt-alleles' ) { $$opts{'trim_alts'} = 1; next }
+        if ( $arg eq '-e' || $arg eq '--exclude-ref' ) { $$opts{'exclude_ref'} = 1; next }
+        if ( $arg eq '-f' || $arg eq '--force' ) { $$opts{'force'} = 1; next }
+        if ( $arg eq '-p' || $arg eq '--private' ) { $$opts{'private'} = 1; next }
+        if ( $arg eq '-r' || $arg eq '--replace-with-ref' ) { $$opts{'replace_with_ref'} = 1; next }
+        if ( $arg eq '-u' || $arg eq '--keep-uncalled' ) { $$opts{'keep_uncalled'} = 1; next }
+        if ( $arg eq '-c' || $arg eq '--columns' ) { $$opts{'columns_file'} = shift(@ARGV); next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( -e $arg ) { $$opts{file} = $arg; next }
+        if ( -e $arg or $arg=~m{^(?:ftp|http)://} ) { $$opts{file}=$arg; next; }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    if ( !$$opts{exclude_ref} && !$$opts{'columns_file'} && !exists($$opts{'types'}) && !exists($$opts{trim_alts}) ) { error("Missing the -c or -t or -r option.\n") }
+    return $opts;
+}
+
+
+sub read_columns
+{
+    my ($fname) = @_;
+    my @columns;
+    if ( !-e $fname )
+    {
+        @columns = split(/,/,$fname);
+        return \@columns;
+    }
+    open(my $fh,'<',$fname) or error("$fname: $!"); 
+    while (my $line=<$fh>)
+    {
+        chomp($line);
+        $line=~s/\s+//g;
+        push @columns, $line;
+    }
+    close($fh);
+    return \@columns;
+}
+
+sub check_columns
+{
+    my ($opts,$vcf,$columns) = @_;
+    my @out;
+    for my $col (@$columns)
+    {
+        if ( exists($$vcf{has_column}{$col}) ) 
+        { 
+            push @out, $col;
+            next; 
+        }
+
+        my $msg = qq[No such column in the VCF file: "$col"\n];
+        if ( $$opts{force} ) { warn($msg); }
+        else { error($msg); }
+    }
+    return \@out;
+}
+
+sub vcf_subset
+{
+    my ($opts) = @_;
+
+    my $vcf = $$opts{file} ? Vcf->new(file=>$$opts{file}) : Vcf->new(fh=>\*STDIN);
+    $vcf->parse_header();
+
+    my $AGtags;
+    if ( $$opts{trim_alts} ) 
+    { 
+        $$vcf{trim_redundant_ALTs} = 1; 
+        $AGtags = $vcf->has_AGtags();
+    }
+
+
+    # Init requested column info. If not present, include all columns.
+    my $columns = exists($$opts{columns_file}) ? read_columns($$opts{columns_file}) : [];
+    $columns = check_columns($opts,$vcf,$columns);
+    if ( !@$columns && (my $ncols=@{$$vcf{columns}})>9 )
+    {
+        push @$columns, @{$$vcf{columns}}[9..($ncols-1)];
+    }
+    my $columns_to_keep = { map { $_ => 1 } @$columns }; 
+    my %has_col = map { $_ => 1 } @$columns;
+
+    $vcf->add_header_line({key=>'source',value=>join(' ',@{$$opts{args}})},append=>'timestamp');
+    $vcf->set_samples(include=>$columns) unless $$opts{private};
+    print $vcf->format_header($columns);
+
+    my $check_private = $$opts{private};
+    while (my $x=$vcf->next_data_hash())
+    {
+        my $site_has_call   = 0;
+        my $site_has_nonref = 0;
+        my $site_is_private = 1;
+        my $ref = $$x{REF};
+
+        for my $col (keys %{$$x{gtypes}})
+        {
+            if ( !$has_col{$col} && ($site_is_private==0 || !$check_private) ) 
+            { 
+                # This column is not to be printed
+                delete($$x{gtypes}{$col}); 
+                next;
+            }
+
+            my ($alleles,$seps,$is_phased,$is_empty) = $vcf->parse_haplotype($x,$col);
+            my $sample_has_call = 0;
+            my $sample_has_nonref = 0;
+            my @out_alleles;
+
+            for (my $i=0; $i<@$alleles; $i++)
+            {
+                my ($type,$len,$ht) = $vcf->event_type($ref,$$alleles[$i]);
+                $out_alleles[$i] = $$alleles[$i];
+
+                # Exclude unwanted variant types if requested
+                if ( exists($$opts{types}) )
+                {
+                    if ( $type eq 's' && $len>1 ) { $type = 'm'; }
+                    elsif ( $type eq 'b' or $type eq 'u' ) { $type = 'o'; }
+                    if ( !exists($$opts{types}{$type}) )
+                    {
+                        $out_alleles[$i] = $$opts{replace_with_ref} ? $ref : '.';
+                        next;
+                    }
+                    $sample_has_call = 1;
+                }
+                elsif ( !$is_empty ) { $sample_has_call = 1; }
+                if ( $type ne 'r' ) { $site_has_nonref = 1; $sample_has_nonref = 1; }
+            }
+            if ( $check_private && !$has_col{$col} )
+            {
+                if ( $sample_has_nonref ) { $site_is_private=0; }
+                delete($$x{gtypes}{$col});
+                next;
+            }
+            if ( !$sample_has_call )
+            {
+                if ( $$opts{replace_with_ref} )
+                {
+                    for (my $i=0; $i<@$alleles; $i++) { $out_alleles[$i] = $ref; }
+                }
+                else
+                {
+                    for (my $i=0; $i<@$alleles; $i++) { $out_alleles[$i] = '.'; }
+                }
+            }
+            else
+            {
+                $site_has_call = 1;
+            }
+            $$x{gtypes}{$col}{GT} = $vcf->format_haplotype(\@out_alleles,$seps);
+        }
+
+        if ( !$site_has_call && !$$opts{keep_uncalled} ) { next; }
+        if ( !$site_has_nonref && $$opts{exclude_ref} ) { next; }
+        if ( $check_private && (!$site_is_private || !$site_has_nonref) ) { next; }
+
+        if ( $$opts{trim_alts} && defined $AGtags ) 
+        { 
+            $vcf->remove_columns($x, keep=>$columns_to_keep);
+            $vcf->parse_AGtags($x); 
+        }
+        $vcf->format_genotype_strings($x);
+        print $vcf->format_line($x,$columns);
+    }
+}
+
+
+
+

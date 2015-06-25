@@ -1,0 +1,288 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+query_vcf($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    print 
+        "About: Finds differences amongst samples adding NOVELGT, NOVELAL and NOVELTY annotations to INFO field.\n",
+        "       Note that haploid genotypes are internally treated as homozygous diploid genotypes, therefore\n",
+        "       \"0/1\" and \"1\" are considered different genotypes.\n",
+        "Usage: vcf-contrast +<list> -<list> [OPTIONS] file.vcf.gz\n",
+        "Options:\n",
+        "   +<list>                             List of samples where unique variant is expected\n",
+        "   -<list>                             List of background samples\n",
+        "   -d, --min-DP <int>                  Minimum depth across all -<list> samples\n",
+        "   -f, --apply-filters                 Skip sites with FILTER column different from PASS or \".\"\n",
+        "   -n, --novel-sites                   Print only records with novel genotypes\n",
+        "   -h, -?, --help                      This help message.\n",
+        "Example:\n",
+        "   # Test if any of the samples A,B is different from all C,D,E\n",
+        "   vcf-contrast +A,B -C,D,E -m file.vcf.gz\n",
+        "\n",
+        "   # Same as above but printing only sites with novel variants and table output\n",
+        "   vcf-contrast -n +A,B -C,D,E -m file.vcf.gz | vcf-query -f '\%CHROM \%POS\\t\%INFO/NOVELTY\\t\%INFO/NOVELAL\\t\%INFO/NOVELGT[\\t\%SAMPLE \%GTR \%PL]\\n'\n",
+        "\n",
+        "   # Similar to above but require minimum mapping quality of 20\n",
+        "   vcf-annotate -f MinMQ=20 file.vcf.gz | vcf-contrast +A,B,C -D,E,F -f\n",
+        "\n";
+    exit -1;
+}
+
+
+sub parse_params
+{
+	$0 =~ s{^.+/}{}; $0 .= "($Vcf::VERSION)";
+	my $opts = { args=>[$0, @ARGV], };
+    while (defined(my $arg=shift(@ARGV)))
+    {
+        if ( -e $arg ) { $$opts{vcf}=$arg; next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( $arg eq '-d' || $arg eq '--min-DP' ) { $$opts{min_dp}=shift(@ARGV); next; }
+        if ( $arg eq '-n' || $arg eq '--novel-sites' ) { $$opts{novel_only}=1; next; }
+        if ( $arg eq '-f' || $arg eq '--apply-filters' ) { $$opts{apply_filters}=1; next; }
+        if ( $arg=~/^\+/ && !exists($$opts{var_samples}) ) { @{$$opts{var_samples}}=split(/,/,$'); next }
+        if ( $arg=~/^-/ && !exists($$opts{bg_samples}) ) { @{$$opts{bg_samples}}=split(/,/,$'); next }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{var_samples}) ) { error("Missing the list of variant samples (+<list>).\n") }
+    if ( !exists($$opts{bg_samples}) ) { error("Missing the list of background samples (-<list>).\n") }
+    return $opts;
+}
+
+sub init_columns
+{
+    my ($vcf,@samples) = @_;
+    my @out;
+    for my $sample (@samples)
+    {
+        push @out, $vcf->get_column_index($sample);
+    }
+    return \@out;
+}
+
+sub query_vcf
+{
+    my ($opts) = @_;
+    my $vcf = exists($$opts{vcf}) ? Vcf->new(file=>$$opts{vcf}) : Vcf->new(fh=>\*STDIN);
+    $vcf->parse_header;
+	$vcf->add_header_line({key=>'INFO',ID=>'NOVELAL',Number=>'.',Type=>'String',Description=>'List of samples with novel alleles'});
+	$vcf->add_header_line({key=>'INFO',ID=>'NOVELGT',Number=>'.',Type=>'String',Description=>'List of samples with novel genotypes'});
+	$vcf->add_header_line({key=>'INFO',ID=>'NOVELTY',Number=>'1',Type=>'Integer',Description=>'vcf-contrast novelty score'});
+	$vcf->add_header_line({key=>'source',value=>join(' ',@{$$opts{args}})},append=>'timestamp');
+	print $vcf->format_header();
+
+    $$opts{var_cols} = init_columns($vcf,@{$$opts{var_samples}});
+    $$opts{bg_cols}  = init_columns($vcf,@{$$opts{bg_samples}});
+
+    while (my $rec=$vcf->next_data_array)
+    {
+        if ( $$opts{apply_filters} && $$rec[6] ne '.' && $$rec[6] ne 'PASS' ) { next; }
+        if ( $$rec[4] eq '.' ) { next; }
+
+        my $ipl = $vcf->get_tag_index($$rec[8],'PL',':');
+		my ($novel,$novelal,$novelgt) = contrast($opts,$vcf,$rec);
+		if ( $novel )
+		{
+			my %info = ( NOVELTY=>$novel );
+			if ( scalar keys %$novelal ) 
+			{ 
+				my @tmp; for my $col (keys %$novelal) { push @tmp, $$vcf{columns}[$col]; }
+				$info{NOVELAL} = join(',',@tmp);
+			}
+			elsif ( scalar keys %$novelgt ) 
+			{ 
+				my @tmp; for my $col (keys %$novelgt) { push @tmp, $$vcf{columns}[$col]; }
+				$info{NOVELGT} = join(',',@tmp);
+			}
+			$$rec[7]=$vcf->add_info_field($$rec[7],%info);
+		}
+		elsif ( $$opts{novel_only} ) { next; }
+		print $vcf->format_line($rec);
+    }
+}
+
+sub contrast
+{
+	my ($opts,$vcf,$rec) = @_;
+
+	my $ipl = $vcf->get_tag_index($$rec[8],'PL',':');
+	my $has_PL = $ipl<0 ? 0 : 1;
+
+	my $igt;
+	if ( !$has_PL )
+	{
+		$igt = $vcf->get_tag_index($$rec[8],'GT',':');
+		if ( $igt<0 ) { error("GT not available: $$rec[0]:$$rec[1]\n"); }
+	}
+
+	my $idp;
+	if ( exists($$opts{min_dp}) ) 
+	{
+		$idp = $vcf->get_tag_index($$rec[8],'DP',':');
+		if ( $idp<0 ) { error("todo: DP not available"); }
+	}
+
+    my @x = split(/,/, $$rec[4]);
+    my $n_als = 1 + scalar @x;
+
+	my (@bg_pls, @bg_als, @bg_gts, @var_pls,@var_gts, $min_dp);
+	for my $bg_col (@{$$opts{bg_cols}}) 
+	{
+		if ( defined $idp )
+		{
+			my $dp = $vcf->get_field($$rec[$bg_col],$idp);
+			if ( !defined $min_dp or $min_dp>$dp ) { $min_dp=$dp; }
+		}
+		my @gt;
+		if ( $has_PL )
+		{
+			my $pl = $vcf->get_field($$rec[$bg_col],$ipl);
+			($pl, @gt) = likely_gt($pl, $n_als);
+            push @bg_pls, $pl;
+		}
+		else
+		{
+			my $gt = $vcf->get_field($$rec[$bg_col],$igt);
+			@gt = $vcf->split_gt($gt);
+		}
+		push @bg_als, \@gt;
+		push @bg_gts, join('/',sort(@gt));
+	}
+	if ( defined $min_dp && $min_dp<$$opts{min_dp} ) { return undef; }
+
+	my %novel_gt;
+	my %novel_al;
+	my $min_score;
+	for my $var_col (@{$$opts{var_cols}})
+	{
+		my (@var_als,$var_pl);
+		if ( $has_PL )
+		{
+			$var_pl  = $vcf->get_field($$rec[$var_col],$ipl);
+            ($var_pl,@var_als) = likely_gt($var_pl, $n_als);
+			@var_als = sort @var_als;
+			push @var_pls, $var_pl;
+		}
+		else
+		{
+			my $gt = $vcf->get_field($$rec[$var_col],$igt);
+			@var_als = sort($vcf->split_gt($gt));
+		}
+		my $var_gt  = join('/',sort(@var_als));
+		push @var_gts, $var_gt;
+
+		my $bg_score;
+		my %als;
+		for (my $i=0; $i<@{$$opts{bg_cols}}; $i++)
+		{
+            my $score;
+            if ( $has_PL )
+            {
+                if ( $var_pls[0] eq '.' or substr($bg_pls[$i],0,1) eq '.' ) { next; }
+                $score = same_pls($var_pl, $bg_pls[$i]);
+            }
+            else
+            {
+                if ( $var_als[0] eq '.' or $bg_als[$i][0] eq '.' ) { next; }
+                $score = same_gts(\@var_als, $bg_als[$i]);
+            }
+			if ( !defined $bg_score or $score<$bg_score ) { $bg_score = $score; }
+			for my $al (@{$bg_als[$i]}) { $als{$al} = 1; }
+			if ( $var_gt ne $bg_gts[$i] ) { $novel_gt{$var_col} = 1; }
+		}
+		if ( !$bg_score ) { next; }
+		if ( !defined $min_score or $min_score>$bg_score ) { $min_score = $bg_score; }
+
+		for my $al (@var_als) 
+		{ 
+			if ( !exists($als{$al}) ) { $novel_al{$var_col} = 1; }
+		}
+	}
+
+	if ( !$min_score ) { return undef; }
+	if ( !scalar keys %novel_gt && !scalar keys %novel_al ) { return undef; }
+	return ($min_score,\%novel_al,\%novel_gt);
+}
+
+sub likely_gt
+{
+    my ($pl, $nals) = @_;
+    my @pls = split(/,/,$pl);
+
+    my ($min,$imin,$jmin);
+    if ( $nals==@pls )
+    {
+        # haploid: treat as fake diploid
+        my @out_pls;
+        $min  = $pls[0]; 
+        $imin = 0;
+        for (my $i=1; $i<@pls; $i++)
+        {
+            if ( $min>$pls[$i] ) { $min = $pls[$i]; $imin = $i; }
+        }
+        for (my $i=0; $i<$nals; $i++)
+        {
+            for (my $j=0; $j<$i; $j++) { push @out_pls,255; }
+            push @out_pls, $pls[$i];
+        }
+        return (join(',',@out_pls), $imin,$imin);
+    }
+
+    # diploid
+    my $idx=0;
+    my $i = 0;
+    while ($idx<@pls)
+    {
+        if ( $pls[$idx] eq '.' ) { return '.'; }
+        for (my $j=0; $j<=$i; $j++)
+        { 
+            if ( $idx>=@pls ) { error("Unexpected number of PL values with n_als=$nals: $pl\n"); }
+            if ( !defined $min or $min>$pls[$idx] ) { $min=$pls[$idx]; $imin=$i; $jmin=$j; }
+            $idx++;
+        }
+        $i++;
+    }
+    return ($pl,$jmin,$imin);
+}
+
+sub same_pls
+{
+    my ($pla,$plb) = @_;
+    my @pla = split(/,/,$pla);
+    my @plb = split(/,/,$plb);
+    my $min;
+    my $imin;
+    for (my $i=0; $i<@pla; $i++)
+    {
+        if ( !defined $min or $pla[$i]+$plb[$i]<$min ) { $min=$pla[$i]+$plb[$i]; $imin=$i; }
+    }
+    return $min;
+}
+
+sub same_gts
+{
+	my ($gta,$gtb) = @_;
+	if ( @$gta != @$gtb ) { return 255; }
+	for (my $i=0; $i<@$gta; $i++)
+	{
+		if ( $$gta[$i] ne $$gtb[$i] ) { return 255; }
+	}
+	return 0;
+}
+

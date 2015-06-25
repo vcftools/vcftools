@@ -1,0 +1,1189 @@
+<body>
+<div id="wrap">
+  <div id="top">
+    <h2> <a href="index.html"><strong>VCFtools</strong></a></h2>
+    <div id="menu">
+      <ul>
+        <li><a href="index.html">Home</a></li>
+        <li><a href="http://sourceforge.net/projects/vcftools/">Sourceforge page</a></li>	
+        <li><a href="examples.html">Examples &amp; Documentation</a></li>
+        <li><a href="downloads.html">Downloads</a></li>
+      </ul>
+    </div>
+  </div>
+
+<br>
+
+<a href="#NAME">NAME</a><br>
+<a href="#SYNOPSIS">SYNOPSIS</a><br>
+<a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#EXAMPLES">EXAMPLES</a><br>
+<a href="#BASIC OPTIONS">BASIC OPTIONS</a><br>
+<a href="#SITE FILTERING OPTIONS">SITE FILTERING OPTIONS</a><br>
+<a href="#INDIVIDUAL FILTERING OPTIONS">INDIVIDUAL FILTERING OPTIONS</a><br>
+<a href="#GENOTYPE FILTERING OPTIONS">GENOTYPE FILTERING OPTIONS</a><br>
+<a href="#OUTPUT OPTIONS">OUTPUT OPTIONS</a><br>
+<a href="#COMPARISON OPTIONS">COMPARISON OPTIONS</a><br>
+<a href="#AUTHOR">AUTHOR</a><br>
+
+<hr>
+
+
+<h2>NAME
+<a name="NAME"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">vcftools
+v0.1.12b &minus; Utilities for the variant call format (VCF)
+and binary variant call format (BCF)</p>
+
+<h2>SYNOPSIS
+<a name="SYNOPSIS"></a>
+</h2>
+
+
+
+<p style="margin-left:11%; margin-top: 1em"><b>vcftools</b>
+[ <b>--vcf</b> FILE | <b>--gzvcf</b> FILE | <b>--bcf</b>
+FILE] [ <b>--out</b> OUTPUT PREFIX ] [ FILTERING OPTIONS ] [
+OUTPUT OPTIONS ]</p>
+
+<h2>DESCRIPTION
+<a name="DESCRIPTION"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">vcftools is a
+suite of functions for use on genetic variation data in the
+form of VCF and BCF files. The tools provided will be used
+mainly to summarize data, run calculations on data, filter
+out data, and convert data into other useful file
+formats.</p>
+
+<h2>EXAMPLES
+<a name="EXAMPLES"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">Output allele
+frequency for all sites in the input vcf file from
+chromosome 1</p>
+
+<p style="margin-left:14%;"><b>vcftools</b> --gzvcf
+input_file.vcf.gz --freq --chr 1 --out chr1_analysis</p>
+
+<p style="margin-left:11%; margin-top: 1em">Output a new
+vcf file from the input vcf file that removes any indel
+sites</p>
+
+<p style="margin-left:14%;"><b>vcftools</b> --vcf
+input_file.vcf --remove-indels --recode --recode-INFO-all
+--out SNPs_only</p>
+
+<p style="margin-left:11%; margin-top: 1em">Output files
+comparing and summarizing the individuals and sites in two
+vcf files</p>
+
+<p style="margin-left:14%;"><b>vcftools</b> --gzvcf
+input_file1.vcf.gz --gzdiff input_file2.vcf.gz --out
+in1_v_in2</p>
+
+<p style="margin-left:11%; margin-top: 1em">Output a new
+vcf file to standard out without any sites that have a
+filter tag, then compress it with gzip</p>
+
+<p style="margin-left:14%;"><b>vcftools</b> --gzvcf
+input_file.vcf.gz --remove-filtered-all --recode --stdout |
+gzip -c &gt; output_PASS_only.vcf.gz</p>
+
+<p style="margin-left:11%; margin-top: 1em">Output a
+Hardy-Weinberg p-value for every site in the bcf file that
+does not have any missing genotypes</p>
+
+<p style="margin-left:14%;"><b>vcftools</b> --bcf
+input_file.bcf --hardy --max-missing 1.0 --out
+output_noMissing</p>
+
+<p style="margin-left:11%; margin-top: 1em">Output
+nucleotide diversity at a list of positions</p>
+
+<p style="margin-left:14%;">zcat input_file.vcf.gz |
+<b>vcftools</b> --vcf - --site-pi --positions SNP_list.txt
+--out nucleotide_diversity</p>
+
+<h2>BASIC OPTIONS
+<a name="BASIC OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">These options
+are used to specify the input and output files.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>INPUT FILE
+OPTIONS</b></p>
+
+<p style="margin-left:14%;"><b>--vcf</b>
+<i>&lt;input_filename&gt;</i></p>
+
+<p style="margin-left:17%;">This option defines the VCF
+file to be processed. VCFtools expects files in VCF format
+v4.0, v4.1 or v4.2. The latter two are supported with some
+small limitations. If the user provides a dash character
+&rsquo;-&rsquo; as a file name, the program expects a VCF
+file to be piped in through standard in.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--gzvcf</b>
+<i>&lt;input_filename&gt;</i></p>
+
+<p style="margin-left:17%;">This option can be used in
+place of the --vcf option to read compressed (gzipped) VCF
+files directly.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--bcf</b>
+<i>&lt;input_filename&gt;</i></p>
+
+<p style="margin-left:17%;">This option can be used in
+place of the --vcf option to read BCF2 files directly. You
+do not need to specify if this file is compressed with BGZF
+encoding. If the user provides a dash character
+&rsquo;-&rsquo; as a file name, the program expects a BCF2
+file to be piped in through standard in.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT FILE
+OPTIONS</b></p>
+
+<p style="margin-left:14%;"><b>--out</b>
+<i>&lt;output_prefix&gt;</i></p>
+
+<p style="margin-left:17%;">This option defines the output
+filename prefix for all files generated by vcftools. For
+example, if &lt;prefix&gt; is set to output_filename, then
+all output files will be of the form output_filename.*** .
+If this option is omitted, all output files will have the
+prefix &quot;out.&quot; in the current working
+directory.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--stdout
+<br>
+-c</b></p>
+
+<p style="margin-left:17%;">These options direct the
+vcftools output to standard out so it can be piped into
+another program or written directly to a filename of choice.
+However, a select few output functions cannot be written to
+standard out.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--temp</b>
+<i>&lt;temporary_directory&gt;</i></p>
+
+<p style="margin-left:17%;">This option can be used to
+redirect any temporary files that vcftools creates into a
+specified directory.</p>
+
+<h2>SITE FILTERING OPTIONS
+<a name="SITE FILTERING OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">These options
+are used to include or exclude certain sites from any
+analysis being performed by the program.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>POSITION
+FILTERING</b></p>
+
+<p style="margin-left:14%;"><b>--chr</b>
+<i>&lt;chromosome&gt;</i> <b><br>
+--not-chr</b> <i>&lt;chromosome&gt;</i></p>
+
+<p style="margin-left:17%;">Includes or excludes sites with
+indentifiers matching &lt;chromosome&gt;. These options may
+be used multiple times to include or exclude more than one
+chromosome.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--from-bp</b>
+<i>&lt;integer&gt;</i> <b><br>
+--to-bp</b> <i>&lt;integer&gt;</i></p>
+
+<p style="margin-left:17%;">These options specify a lower
+bound and upper bound for a range of sites to be processed.
+Sites with positions less than or greater than these values
+will be excluded. These options can only be used in
+conjunction with a single usage of --chr. Using one of these
+does not require use of the other.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--positions</b>
+<i>&lt;filename&gt;</i> <b><br>
+--exclude-positions</b> <i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">Include or exclude a set of
+sites on the basis of a list of positions in a file. Each
+line of the input file should contain a (tab-separated)
+chromosome and position. The file can have comment lines
+that start with a &quot;#&quot;, they will be ignored.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--positions-overlap</b>
+<i>&lt;filename&gt;</i> <b><br>
+--exclude-positions-overlap</b> <i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">Include or exclude a set of
+sites on the basis of the reference allele overlapping with
+a list of positions in a file. Each line of the input file
+should contain a (tab-separated) chromosome and position.
+The file can have comment lines that start with a
+&quot;#&quot;, they will be ignored.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--bed</b>
+<i>&lt;filename&gt;</i> <b><br>
+--exclude-bed</b> <i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">Include or exclude a set of
+sites on the basis of a BED file. Only the first three
+columns (chrom, chromStart and chromEnd) are required. The
+BED file is expected to have a header line.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--thin</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Thin sites so that no two sites
+are within the specified distance from one another.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--mask</b>
+<i>&lt;filename&gt;</i> <b><br>
+--invert-mask</b> <i>&lt;filename&gt;</i> <b><br>
+--mask-min</b> <i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">These options are used to
+specify a FASTA-like mask file to filter with. The mask file
+contains a sequence of integer digits (between 0 and 9) for
+each position on a chromosome that specify if a site at that
+position should be filtered or not. <br>
+An example mask file would look like:</p>
+
+<p style="margin-left:20%;"><i>&gt;1 <br>
+0000011111222... <br>
+&gt;2 <br>
+2222211111000...</i></p>
+
+<p style="margin-left:17%;">In this example, sites in the
+VCF file located within the first 5 bases of the start of
+chromosome 1 would be kept, whereas sites at position 6
+onwards would be filtered out. And sites after the 11th
+position on chromosome 2 would be filtered out as well. <br>
+The &quot;--invert-mask&quot; option takes the same format
+mask file as the &quot;--mask&quot; option, however it
+inverts the mask file before filtering with it. <br>
+And the &quot;--mask-min&quot; option specifies a threshold
+mask value between 0 and 9 to filter positions by. The
+default threshold is 0, meaning only sites with that value
+or lower will be kept.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>SITE ID
+FILTERING</b></p>
+
+<p style="margin-left:14%;"><b>--snp</b>
+<i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">Include SNP(s) with matching ID
+(e.g. a dbSNP rsID). This command can be used multiple times
+in order to include more than one SNP.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--snps</b>
+<i>&lt;filename&gt;</i> <b><br>
+--exclude</b> <i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">Include or exclude a list of
+SNPs given in a file. The file should contain a list of SNP
+IDs (e.g. dbSNP rsIDs), with one ID per line. No header line
+is expected.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>VARIANT TYPE
+FILTERING</b></p>
+
+<p style="margin-left:14%;"><b>--keep-only-indels <br>
+--remove-indels</b></p>
+
+<p style="margin-left:17%;">Include or exclude sites that
+contain an indel. For these options &quot;indel&quot; means
+any variant that alters the length of the REF allele.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>FILTER FLAG
+FILTERING</b></p>
+
+
+<p style="margin-left:14%;"><b>--remove-filtered-all</b></p>
+
+<p style="margin-left:17%;">Removes all sites with a FILTER
+flag other than PASS.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--keep-filtered</b>
+<i>&lt;string&gt;</i> <b><br>
+--remove-filtered</b> <i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">Includes or excludes all sites
+marked with a specific FILTER flag. These options may be
+used more than once to specify multiple FILTER flags.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>INFO FIELD
+FILTERING</b></p>
+
+<p style="margin-left:14%;"><b>--keep-INFO</b>
+<i>&lt;string&gt;</i> <b><br>
+--remove-INFO</b> <i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">Includes or excludes all sites
+with a specific INFO flag. These options only filter on the
+presence of the flag and not its value. These options can be
+used multiple times to specify multiple INFO flags.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>ALLELE
+FILTERING</b></p>
+
+<p style="margin-left:14%;"><b>--maf</b>
+<i>&lt;float&gt;</i> <b><br>
+--max-maf</b> <i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Include only sites with a Minor
+Allele Frequency greater than or equal to the
+&quot;--maf&quot; value and less than or equal to the
+&quot;--max-maf&quot; value. One of these options may be
+used without the other. Allele frequency is defined as the
+number of times an allele appears over all individuals at
+that site, divided by the total number of non-missing
+alleles at that site.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--non-ref-af</b>
+<i>&lt;float&gt;</i> <b><br>
+--max-non-ref-af</b> <i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Include only sites with all
+Non-Reference (ALT) Allele Frequencies greater than or equal
+to the &quot;--non-ref-af&quot; value and less than or equal
+to the &quot;--max-non-ref-af&quot; value. One of these
+options may be used without the other. Allele frequency is
+defined as the number of times an allele appears over all
+individuals at that site, divided by the total number of
+non-missing alleles at that site.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--mac</b>
+<i>&lt;int&gt;</i> <b><br>
+--max-mac</b> <i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Include only sites with Minor
+Allele Count greater than or equal to the &quot;--mac&quot;
+value and less than or equal to the &quot;--max-mac&quot;
+value. One of these options may be used without the other.
+Allele count is simply the number of times that allele
+appears over all individuals at that site.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--non-ref-ac</b>
+<i>&lt;float&gt;</i> <b><br>
+--max-non-ref-ac</b> <i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Include only sites with all
+Non-Reference (ALT) Allele Counts greater than or equal to
+the &quot;--non-ref-ac&quot; value and less than or equal to
+the &quot;--max-non-ref-ac&quot; value. One of these options
+may be used without the other. Allele count is simply the
+number of times that allele appears over all individuals at
+that site.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--min-alleles</b>
+<i>&lt;int&gt;</i> <b><br>
+--max-alleles</b> <i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Include only sites with a
+number of alleles greater than or equal to the
+&quot;--min-alleles&quot; value and less than or equal to
+the &quot;--max-alleles&quot; value. One of these options
+may be used without the other. <br>
+For example, to include only bi-allelic sites, one could
+use:</p>
+
+<p style="margin-left:20%;"><b>vcftools</b> --vcf file1.vcf
+--min-alleles 2 --max-alleles 2</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>GENOTYPE
+VALUE FILTERING</b></p>
+
+<p style="margin-left:14%;"><b>--min-meanDP</b>
+<i>&lt;float&gt;</i> <b><br>
+--max-meanDP</b> <i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Includes only sites with mean
+depth values (over all included individuals) greater than or
+equal to the &quot;--min-meanDP&quot; value and less than or
+equal to the &quot;--max-meanDP&quot; value. One of these
+options may be used without the other. These options require
+that the &quot;DP&quot; FORMAT tag is included for each
+site.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--hwe</b>
+<i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Assesses sites for
+Hardy-Weinberg Equilibrium using an exact test, as defined
+by Wigginton, Cutler and Abecasis (2005). Sites with a
+p-value below the threshold defined by this option are taken
+to be out of HWE, and therefore excluded.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--max-missing</b>
+<i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Exclude sites on the basis of
+the proportion of missing data (defined to be between 0 and
+1, where 0 allows sites that are completely missing and 1
+indicates no missing data allowed).</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--max-missing-count</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Exclude sites with more than
+this number of missing genotypes over all individuals.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--phased</b></p>
+
+<p style="margin-left:17%;">Excludes all sites that contain
+unphased genotypes.</p>
+
+
+<p style="margin-left:11%; margin-top: 1em"><b>MISCELLANEOUS
+FILTERING</b></p>
+
+<p style="margin-left:14%;"><b>--minQ</b>
+<i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Includes only sites with
+Quality value above this threshold.</p>
+
+<h2>INDIVIDUAL FILTERING OPTIONS
+<a name="INDIVIDUAL FILTERING OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">These options
+are used to include or exclude certain individuals from any
+analysis being performed by the program.</p>
+
+<p style="margin-left:14%;"><b>--indv</b>
+<i>&lt;string&gt;</i> <b><br>
+--remove-indv</b> <i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">Specify an individual to be
+kept or removed from the analysis. This option can be used
+multiple times to specify multiple individuals. If both
+options are specified, then the &quot;--indv&quot; option is
+executed before the &quot;--remove-indv option&quot;.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--keep</b>
+<i>&lt;filename&gt;</i> <b><br>
+--remove</b> <i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">Provide a file containing a
+list of individuals to either include or exclude in
+subsequent analysis. Each individual ID (as defined in the
+VCF headerline) should be included on a separate line. If
+both options are used, then the &quot;--keep&quot; option is
+execute before the &quot;--remove&quot; option. No header
+line is expected.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--max-indv</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Randomly thins individuals so
+that only the specified number are retained.</p>
+
+<h2>GENOTYPE FILTERING OPTIONS
+<a name="GENOTYPE FILTERING OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">These options
+are used to exclude genotypes from any analysis being
+performed by the program. If excluded, these values will be
+treated as missing.</p>
+
+
+<p style="margin-left:14%;"><b>--remove-filtered-geno-all</b></p>
+
+<p style="margin-left:17%;">Excludes all genotypes with a
+FILTER flag not equal to &quot;.&quot; (a missing value) or
+PASS.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--remove-filtered-geno</b>
+<i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">Excludes genotypes with a
+specific FILTER flag.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--minGQ</b>
+<i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Exclude all genotypes with a
+quality below the threshold specified. This option requires
+that the &quot;GQ&quot; FORMAT tag is specified for all
+sites.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--minDP</b>
+<i>&lt;float&gt;</i> <b><br>
+--maxDP</b> <i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">Includes only genotypes greater
+than or equal to the &quot;--minDP&quot; value and less than
+or equal to the &quot;--maxDP&quot; value. This option
+requires that the &quot;DP&quot; FORMAT tag is specified for
+all sites.</p>
+
+<h2>OUTPUT OPTIONS
+<a name="OUTPUT OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">These options
+specify which analyses or conversions to perform on the data
+that passed through all specified filters.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT
+ALLELE STATISTICS</b></p>
+
+<p style="margin-left:14%;"><b>--freq <br>
+--freq2</b></p>
+
+<p style="margin-left:17%;">Outputs the allele frequency
+for each site in a file with the suffix &quot;.frq&quot;.
+The second option is used to suppress output of any
+information about the alleles.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--counts
+<br>
+--counts2</b></p>
+
+<p style="margin-left:17%;">Outputs the raw allele counts
+for each site in a file with the suffix
+&quot;.frq.count&quot;. The second option is used to
+suppress output of any information about the alleles.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--derived</b></p>
+
+<p style="margin-left:17%;">For use with the previous four
+frequency and count options only. Re-orders the output file
+columns so that the ancestral allele appears first. This
+option relies on the ancestral allele being specified in the
+VCF file using the AA tag in the INFO field.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT DEPTH
+STATISTICS</b></p>
+
+<p style="margin-left:14%;"><b>--depth</b></p>
+
+<p style="margin-left:17%;">Generates a file containing the
+mean depth per individual. This file has the suffix
+&quot;.idepth&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--site-depth</b></p>
+
+<p style="margin-left:17%;">Generates a file containing the
+depth per site summed across all individuals. This output
+file has the suffix &quot;.ldepth&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--site-mean-depth</b></p>
+
+<p style="margin-left:17%;">Generates a file containing the
+mean depth per site averaged across all individuals. This
+output file has the suffix &quot;.ldepth.mean&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--geno-depth</b></p>
+
+<p style="margin-left:17%;">Generates a (possibly very
+large) file containing the depth for each genotype in the
+VCF file. Missing entries are given the value -1. The file
+has the suffix &quot;.gdepth&quot;.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT LD
+STATISTICS</b></p>
+
+<p style="margin-left:14%;"><b>--hap-r2</b></p>
+
+<p style="margin-left:17%;">Outputs a file reporting the
+r2, D, and D&rsquo; statistics using phased haplotypes.
+These are the traditional measures of LD often reported in
+the population genetics literature. The output file has the
+suffix &quot;.hap.ld&quot;. This option assumes that the VCF
+input file has phased haplotypes.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--geno-r2</b></p>
+
+<p style="margin-left:17%;">Calculates the squared
+correlation coefficient between genotypes encoded as 0, 1
+and 2 to represent the number of non-reference alleles in
+each individual. This is the same as the LD measure reported
+by PLINK. The D and D&rsquo; statistics are only available
+for phased genotypes. The output file has the suffix
+&quot;.geno.ld&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--geno-chisq</b></p>
+
+<p style="margin-left:17%;">If your data contains sites
+with more than two alleles, then this option can be used to
+test for genotype independence via the chi-squared
+statistic. The output file has the suffix
+&quot;.geno.chisq&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--ld-window</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">This optional parameter defines
+the maximum number of SNPs between the SNPs being tested for
+LD in the &quot;--hap-r2&quot;, &quot;--geno-r2&quot;, and
+&quot;--geno-chisq&quot; functions.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--ld-window-bp</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">This optional parameter defines
+the maximum number of physical bases between the SNPs being
+tested for LD in the &quot;--hap-r2&quot;,
+&quot;--geno-r2&quot;, and &quot;--geno-chisq&quot;
+functions.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--ld-window-min</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">This optional parameter defines
+the minimum number of SNPs between the SNPs being tested for
+LD in the &quot;--hap-r2&quot;, &quot;--geno-r2&quot;, and
+&quot;--geno-chisq&quot; functions.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--ld-window-bp-min</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">This optional parameter defines
+the minimum number of physical bases between the SNPs being
+tested for LD in the &quot;--hap-r2&quot;,
+&quot;--geno-r2&quot;, and &quot;--geno-chisq&quot;
+functions.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--min-r2</b>
+<i>&lt;float&gt;</i></p>
+
+<p style="margin-left:17%;">This optional parameter sets a
+minimum value for r2, below which the LD statistic is not
+reported by the &quot;--hap-r2&quot;, &quot;--geno-r2&quot;,
+and &quot;--geno-chisq&quot; functions.</p>
+
+<p style="margin-left:14%;"><b>--interchrom-hap-r2</b></p>
+
+<p style="margin-left:17%;">Outputs a file reporting the r2
+statistics using phased haplotypes only with sites on
+different chromosomes. The output file has the suffix
+&quot;.interchrom.hap.ld&quot;. This option assumes that the
+VCF input file has phased haplotypes.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--interchrom-geno-r2</b></p>
+
+<p style="margin-left:17%;">Calculates the squared
+correlation coefficient between genotypes encoded as 0, 1
+and 2 to represent the number of non-reference alleles in
+each individual but only for sites on differing chromosomes.
+The output file has the suffix
+&quot;.interchrom.geno.ld&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--hap-r2-positions</b>
+<i>&lt;BED file&gt;</i></p>
+
+<p style="margin-left:17%;">Outputs a file reporting the r2
+statistics using phased haplotypes only at the sites
+contained in the provided BED file. The output file has the
+suffix &quot;.list.hap.ld&quot;. This option assumes that
+the VCF input file has phased haplotypes.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--geno-r2-positions</b>
+<i>&lt;BED file&gt;</i></p>
+
+<p style="margin-left:17%;">Calculates the squared
+correlation coefficient between genotypes only at the sites
+contained in the provided BED file. The output file has the
+suffix &quot;.list.geno.ld&quot;.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT
+TRANSITION/TRANSVERSION STATISTICS</b></p>
+
+<p style="margin-left:14%;"><b>--TsTv</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Calculates the Transition /
+Transversion ratio in bins of size defined by this option.
+Only uses bi-allelic SNPs. The resulting output file has the
+suffix &quot;.TsTv&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--TsTv-summary</b></p>
+
+<p style="margin-left:17%;">Calculates a simple summary of
+all Transitions and Transversions. The output file has the
+suffix &quot;.TsTv.summary&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--TsTv-by-count</b></p>
+
+<p style="margin-left:17%;">Calculates the Transition /
+Transversion ratio as a function of alternative allele
+count. Only uses bi-allelic SNPs. The resulting output file
+has the suffix &quot;.TsTv.count&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--TsTv-by-qual</b></p>
+
+<p style="margin-left:17%;">Calculates the Transition /
+Transversion ratio as a function of SNP quality threshold.
+Only uses bi-allelic SNPs. The resulting output file has the
+suffix &quot;.TsTv.qual&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--FILTER-summary</b></p>
+
+<p style="margin-left:17%;">Generates a summary of the
+number of SNPs and Ts/Tv ratio for each FILTER category. The
+output file has the suffix &quot;.FILTER.summary&quot;.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT
+NUCLEOTIDE DIVERGENCE STATISTICS</b></p>
+
+<p style="margin-left:14%;"><b>--site-pi</b></p>
+
+<p style="margin-left:17%;">Measures nucleotide divergency
+on a per-site basis. The output file has the suffix
+&quot;.sites.pi&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--window-pi</b>
+<i>&lt;int&gt;</i> <b><br>
+--window-pi-step</b> <i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Measures the nucleotide
+diversity in windows, with the number provided as the window
+size. The output file has the suffix
+&quot;.windowed.pi&quot;. The latter is an optional argument
+used to specify the step size in between windows.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT FST
+STATISTICS</b></p>
+
+<p style="margin-left:14%;"><b>--weir-fst-pop</b>
+<i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">This option is used to
+calculate an Fst estimate from Weir and Cockerham&rsquo;s
+1984 paper. This is the preferred calculation of Fst. The
+provided file must contain a list of individuals (one
+individual per line) from the VCF file that correspond to
+one population. This option can be used multiple times to
+calculate Fst for more than two populations. By default,
+calculations are done on a per-site basis. The output file
+has the suffix &quot;.weir.fst&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--fst-window-size</b>
+<i>&lt;int&gt;</i> <b><br>
+--fst-window-step</b> <i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">These options can be used with
+&quot;--weir-fst-pop&quot; to do the Fst calculations on a
+windowed basis instead of a per-site basis. These arguments
+specify the desired window size and the desired step size
+between windows.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT OTHER
+STATISTICS</b></p>
+
+<p style="margin-left:14%;"><b>--het</b></p>
+
+<p style="margin-left:17%;">Calculates a measure of
+heterozygosity on a per-individual basis. Specfically, the
+inbreeding coefficient, F, is estimated for each individual
+using a method of moments. The resulting file has the suffix
+&quot;.het&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--hardy</b></p>
+
+<p style="margin-left:17%;">Reports a p-value for each site
+from a Hardy-Weinberg Equilibrium test (as defined by
+Wigginton, Cutler and Abecasis (2005)). The resulting file
+(with suffix &quot;.hwe&quot;) also contains the Observed
+numbers of Homozygotes and Heterozygotes and the
+corresponding Expected numbers under HWE.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--TajimaD</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Outputs Tajima&rsquo;s D
+statistic in bins with size of the specified number. The
+output file has the suffix &quot;.Tajima.D&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--indv-freq-burden</b></p>
+
+<p style="margin-left:17%;">This option calculates the
+number of variants within each individual of a specific
+frequency. The resulting file has the suffix
+&quot;.ifreqburden&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--LROH</b></p>
+
+<p style="margin-left:17%;">This option will identify and
+output Long Runs of Homozygosity. The output file has the
+suffix &quot;.LROH&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--relatedness</b></p>
+
+<p style="margin-left:17%;">This option is used to
+calculate and output a relatedness statistic based on the
+method of Yang et al, Nature Genetics 2010
+(doi:10.1038/ng.608). Specifically, calculate the unadjusted
+Ajk statistic. Expectation of Ajk is zero for individuals
+within a populations, and one for an individual with
+themselves. The output file has the suffix
+&quot;.relatedness&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--relatedness2</b></p>
+
+<p style="margin-left:17%;">This option is used to
+calculate and output a relatedness statistic based on the
+method of Manichaikul et al., BIOINFORMATICS 2010
+(doi:10.1093/bioinformatics/btq559). The output file has the
+suffix &quot;.relatedness2&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--site-quality</b></p>
+
+<p style="margin-left:17%;">Generates a file containing the
+per-site SNP quality, as found in the QUAL column of the VCF
+file. This file has the suffix &quot;.lqual&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--missing-indv</b></p>
+
+<p style="margin-left:17%;">Generates a file reporting the
+missingness on a per-individual basis. The file has the
+suffix &quot;.imiss&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--missing-site</b></p>
+
+<p style="margin-left:17%;">Generates a file reporting the
+missingness on a per-site basis. The file has the suffix
+&quot;.lmiss&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--SNPdensity</b>
+<i>&lt;int&gt;</i></p>
+
+<p style="margin-left:17%;">Calculates the number and
+density of SNPs in bins of size defined by this option. The
+resulting output file has the suffix
+&quot;.snpden&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--kept-sites</b></p>
+
+<p style="margin-left:17%;">Creates a file listing all
+sites that have been kept after filtering. The file has the
+suffix &quot;.kept.sites&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--removed-sites</b></p>
+
+<p style="margin-left:17%;">Creates a file listing all
+sites that have been removed after filtering. The file has
+the suffix &quot;.removed.sites&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--singletons</b></p>
+
+<p style="margin-left:17%;">This option will generate a
+file detailing the location of singletons, and the
+individual they occur in. The file reports both true
+singletons, and private doubletons (i.e. SNPs where the
+minor allele only occurs in a single individual and that
+individual is homozygotic for that allele). The output file
+has the suffix &quot;.singletons&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--hist-indel-len</b></p>
+
+<p style="margin-left:17%;">This option will generate a
+histogram file of the length of all indels (including SNPs).
+It shows both the count and the percentage of all indels for
+indel lengths that occur at least once in the input file.
+SNPs are considered indels with length zero. The output file
+has the suffix &quot;.indel.hist&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--extract-FORMAT-info</b>
+<i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">Extract information from the
+genotype fields in the VCF file relating to a specfied
+FORMAT identifier. The resulting output file has the suffix
+&quot;.&lt;FORMAT_ID&gt;.FORMAT&quot;. For example, the
+following command would extract the all of the GT (i.e.
+Genotype) entries:</p>
+
+<p style="margin-left:20%;"><b>vcftools</b> --vcf file1.vcf
+--extract-FORMAT-info GT</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--get-INFO</b>
+<i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">This option is used to extract
+information from the INFO field in the VCF file. The
+&lt;string&gt; argument specifies the INFO tag to be
+extracted, and the option can be used multiple times in
+order to extract multiple INFO entries. The resulting file,
+with suffix &quot;.INFO&quot;, contains the required INFO
+information in a tab-separated table. For example, to
+extract the NS and DB flags, one would use the command:</p>
+
+<p style="margin-left:20%;"><b>vcftools</b> --vcf file1.vcf
+--get-INFO NS --get-INFO DB</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT VCF
+FORMAT</b></p>
+
+<p style="margin-left:14%;"><b>--recode <br>
+--recode-bcf</b></p>
+
+<p style="margin-left:17%;">These options are used to
+generate a new file in either VCF or BCF from the input VCF
+or BCF file after applying the filtering options specified
+by the user. The output file has the suffix
+&quot;.recode.vcf&quot; or &quot;.recode.bcf&quot;. By
+default, the INFO fields are removed from the output file,
+as the INFO values may be invalidated by the recoding (e.g.
+the total depth may need to be recalculated if individuals
+are removed). This behavior may be overriden by the
+following options. By default, BCF files are written out as
+BGZF compressed files.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--recode-INFO</b>
+<i>&lt;string&gt;</i> <b><br>
+--recode-INFO-all</b></p>
+
+<p style="margin-left:17%;">These options can be used with
+the above recode options to define an INFO key name to keep
+in the output file. This option can be used multiple times
+to keep more of the INFO fields. The second option is used
+to keep all INFO values in the original file.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--contigs</b>
+<i>&lt;string&gt;</i></p>
+
+<p style="margin-left:17%;">This option can be used in
+conjuction with the --recode-bcf when the input file does
+not have any contig declarations. This option expects a file
+name with one contig header per line. These lines are
+included in the output file.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>OUTPUT OTHER
+FORMATS</b></p>
+
+<p style="margin-left:14%;"><b>--012</b></p>
+
+<p style="margin-left:17%;">This option outputs the
+genotypes as a large matrix. Three files are produced. The
+first, with suffix &quot;.012&quot;, contains the genotypes
+of each individual on a separate line. Genotypes are
+represented as 0, 1 and 2, where the number represent that
+number of non-reference alleles. Missing genotypes are
+represented by -1. The second file, with suffix
+&quot;.012.indv&quot; details the individuals included in
+the main file. The third file, with suffix
+&quot;.012.pos&quot; details the site locations included in
+the main file.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--IMPUTE</b></p>
+
+<p style="margin-left:17%;">This option outputs phased
+haplotypes in IMPUTE reference-panel format. As IMPUTE
+requires phased data, using this option also implies
+--phased. Unphased individuals and genotypes are therefore
+excluded. Only bi-allelic sites are included in the output.
+Using this option generates three files. The IMPUTE
+haplotype file has the suffix &quot;.impute.hap&quot;, and
+the IMPUTE legend file has the suffix
+&quot;.impute.hap.legend&quot;. The third file, with suffix
+&quot;.impute.hap.indv&quot;, details the individuals
+included in the haplotype file, although this file is not
+needed by IMPUTE.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--ldhat <br>
+--ldhat-geno</b></p>
+
+<p style="margin-left:17%;">These options output data in
+LDhat format. This option requires the &quot;--chr&quot;
+filter option to also be used. The first option outputs
+phased data only, and therefore also implies
+&quot;--phased&quot; be used, leading to unphased
+individuals and genotypes being excluded. The second option
+treats all of the data as unphased, and therefore outputs
+LDhat files in genotype/unphased format. Two output files
+are generated with the suffixes &quot;.ldhat.sites&quot; and
+&quot;.ldhat.locs&quot;, which correspond to the LDhat
+&quot;sites&quot; and &quot;locs&quot; input files
+respectively.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--BEAGLE-GL
+<br>
+--BEAGLE-PL</b></p>
+
+<p style="margin-left:17%;">These options output genotype
+likelihood information for input into the BEAGLE program.
+The VCF file is required to contain FORMAT fields with
+&quot;GL&quot; or &quot;PL&quot; tags, which can generally
+be output by SNP callers such as the GATK. Use of this
+option requires a chromosome to be specified via the
+&quot;--chr&quot; option. The resulting output file has the
+suffix &quot;.BEAGLE.GL&quot; or &quot;.BEAGLE.PL&quot; and
+contains genotype likelihoods for biallelic sites. This file
+is suitable for input into BEAGLE via the &quot;like=&quot;
+argument.</p>
+
+<p style="margin-left:14%; margin-top: 1em"><b>--plink <br>
+--plink-tped</b></p>
+
+<p style="margin-left:17%;">These options output the
+genotype data in PLINK PED format. With the first option,
+two files are generated, with suffixes &quot;.ped&quot; and
+&quot;.map&quot;. Note that only bi-allelic loci will be
+output. Further details of these files can be found in the
+PLINK documentation. <br>
+Note: The first option can be very slow on large datasets.
+Using the --chr option to divide up the dataset is advised,
+or alternatively use the --plink-tped option which outputs
+the files in the PLINK transposed format with suffixes
+&quot;.tped&quot; and &quot;.tfam&quot;.</p>
+
+<h2>COMPARISON OPTIONS
+<a name="COMPARISON OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">These options
+are used to compare the original variant file to another
+variant file and output the results. All diff functions
+cannot be written to standard out.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>DIFF VCF
+FILE</b></p>
+
+<p style="margin-left:14%;"><b>--diff</b>
+<i>&lt;filename&gt;</i> <b><br>
+--gzdiff</b> <i>&lt;filename&gt;</i> <b><br>
+--diff-bcf</b> <i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">These options compare the
+original input file to this specified VCF, gzipped VCF, or
+BCF file. This option outputs two files describing the sites
+and individuals common / unique to each file. These files
+have the suffixes &quot;.diff.sites_in_files&quot; and
+&quot;.diff.indv_in_files&quot; respectively. <br>
+See examples section for usage help.</p>
+
+<p style="margin-left:11%; margin-top: 1em"><b>DIFF
+OPTIONS</b></p>
+
+
+<p style="margin-left:14%;"><b>--diff-site-discordance</b></p>
+
+<p style="margin-left:17%;">This option can be used in
+conjuction with any of the above &quot;--diff&quot; options
+to calculate discordance on a site by site basis. The
+resulting output file has the suffix
+&quot;.diff.sites&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--diff-indv-discordance</b></p>
+
+<p style="margin-left:17%;">This option can be used in
+conjuction with any of the above &quot;--diff&quot; options
+to calculate discordance on a per-individual basis. The
+resulting output file has the suffix
+&quot;.diff.indv&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--diff-indv-map</b>
+<i>&lt;filename&gt;</i></p>
+
+<p style="margin-left:17%;">This option can be used in
+conjuction with any of the above &quot;--diff&quot; options
+to specify a mapping of individual IDs in the second file to
+those in the first file.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--diff-discordance-matrix</b></p>
+
+<p style="margin-left:17%;">This option can be used in
+conjuction with any of the above &quot;--diff&quot; options
+to calculate a discordance matrix. This option only works
+with bi-allelic loci with matching alleles that are present
+in both files. The resulting output file has the suffix
+&quot;.diff.discordance.matrix&quot;.</p>
+
+
+<p style="margin-left:14%; margin-top: 1em"><b>--diff-switch-error</b></p>
+
+<p style="margin-left:17%;">Used in conjuction with the
+--diff option to calculate phasing errors (specifically
+&quot;switch errors&quot;). This option generates two output
+files describing switch errors found between sites, and the
+average switch error per individual. These two files have
+the suffixes &quot;.diff.switch&quot; and
+&quot;.diff.indv.switch&quot; respectively.</p>
+
+<h2>AUTHOR
+<a name="AUTHOR"></a>
+</h2>
+
+
+<p style="margin-left:11%; margin-top: 1em">Adam Auton
+(adam.auton@einstein.yu.edu) <br>
+Anthony Marcketta (anthony.marcketta@einstein.yu.edu)</p>
+<hr>
+</body>
+</html>

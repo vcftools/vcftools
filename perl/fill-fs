@@ -1,0 +1,237 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+use FaSlice;
+
+my $opts = parse_params();
+flanking_sequence($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    die
+        "About: Annotate VCF with flanking sequence (INFO/FS tag)\n",
+        "Usage: fill-fs [OPTIONS] file.vcf\n",
+        "Options:\n",
+        "   -b, --bed-mask <file>           Regions to mask (tabix indexed), multiple files can be given\n",
+        "   -c, --cluster <int>             Do self-masking of clustered variants within this range.\n",
+        "   -l, --length <int>              Flanking sequence length [100]\n",
+        "   -m, --mask-char <char|lc>       The character to use or \"lc\" for lowercase. This option must preceed\n",
+        "                                       -b, -v or -c in order to take effect. With multiple files works\n",
+        "                                        as a switch on the command line, see the example below [N]\n",
+        "   -r, --refseq <file>             The reference sequence.\n",
+        "   -v, --vcf-mask <file>           Mask known variants in the flanking sequence, multiple files can be given (tabix indexed)\n",
+        "   -h, -?, --help                  This help message.\n",
+        "Example:\n",
+        "   # Mask variants from the VCF file with N's and use lowercase for the bed file regions\n",
+        "   fill-fs file.vcf -v mask.vcf -m lc -b mask.bed\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = { length=>100, mask=>[], cluster=>0 };
+    my $mask = $$opts{mask_char}{default} = 'N';
+    my $mask_changed = 0;
+    while (defined(my $arg=shift(@ARGV)))
+    {
+        if ( $arg eq '-c' || $arg eq '--cluster' ) { $$opts{cluster}=shift(@ARGV); $$opts{mask_char}{default}=$mask; $mask_changed=0; next; }
+        if ( $arg eq '-r' || $arg eq '--refseq' ) { $$opts{refseq}=shift(@ARGV); next; }
+        if ( $arg eq '-l' || $arg eq '--length' ) { $$opts{length}=shift(@ARGV); next; }
+        if ( $arg eq '-m' || $arg eq '--mask' ) { $mask=shift(@ARGV); check_mask_char($mask); $mask_changed=1; next; }
+        if ( $arg eq '-b' || $arg eq '--bed-mask' ) { $arg=shift(@ARGV); push @{$$opts{bed_mask}},$arg; $$opts{mask_char}{$arg}=$mask; $mask_changed=0; next; }
+        if ( $arg eq '-v' || $arg eq '--vcf-mask' ) { $arg=shift(@ARGV); push @{$$opts{vcf_mask}},$arg; $$opts{mask_char}{$arg}=$mask; $mask_changed=0; next; }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( -e $arg && !exists($$opts{file}) ) { $$opts{file}=$arg; next; }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    if ( !($$opts{length}=~/^\d+$/) ) { error("Expected integer after -l, got $$opts{length}\n"); }
+    if ( !exists($$opts{refseq}) ) { error("Missing the -r option.\n"); }
+    if ( $mask_changed ) { error("The -m parameter must preceed -b, -v, or the file in order to take effect.\n"); }
+    return $opts;
+}
+
+sub check_mask_char
+{
+    my ($mask) = @_;
+    if ( $mask eq 'lc' ) { return; }
+    if ( length($mask) eq 1 ) { return; }
+    error("Currently only \"lc\" or one-character mask is supported, got \"$mask\".\n");
+}
+
+sub flanking_sequence
+{
+    my ($opts) = @_;
+
+    $$opts{faref} = FaSlice->new(file=>$$opts{refseq},size=>1_024,oob=>'N');
+
+    my $vcf = $$opts{vcf} = exists($$opts{file}) ? Vcf->new(file=>$$opts{file}) : Vcf->new(fh=>\*STDIN);
+    $vcf->parse_header;
+    $vcf->add_header_line({key=>'INFO',ID=>'FS',Number=>1,Type=>'String',Description=>'Flanking sequence'});  
+    print $vcf->format_header;
+
+    my (@lines,@mask);
+    while (my $line=$vcf->next_data_array)
+    {
+        my $chr = $$line[0];
+        my $pos = $$line[1];
+        my $ref = $$line[3];
+        my $alt = $$line[4];
+
+        my $off;
+        $alt =~ s/,.+$//;   # first allele is used at multiallelic sites
+        ($off,$ref,$alt) = $vcf->normalize_alleles_pos($ref,$alt);
+        $pos += $off;
+
+        push @lines, { chr=>$chr, pos=>$pos, ref=>$ref, alt=>$alt, line=>$line };
+        push @mask, { chr=>$chr, pos=>$pos, ref=>$ref };
+        flush_buffers($opts,\@lines,\@mask);
+    }
+
+    flush_buffers($opts,\@lines,\@mask,1);
+}
+
+sub flush_buffers
+{
+    my ($opts,$lines,$mask,$force) = @_;
+
+    if ( !@$lines ) { return; }
+
+    if ( !$$opts{cluster} )
+    {
+        shift(@$mask);
+        output_line($opts,shift(@$lines),$mask);
+        return;
+    }
+
+    while ( @$lines && ($force or $$mask[0]{chr} ne $$lines[-1]{chr} or $$mask[0]{pos}+2*$$opts{cluster}<=$$lines[-1]{pos}) )
+    {
+        output_line($opts,$$lines[0],$mask);
+        shift(@$lines);
+        while ( @$mask && @$lines && ($$mask[0]{chr} ne $$lines[0]{chr} or $$mask[0]{pos}+$$opts{cluster}<=$$lines[0]{pos}) )
+        {
+            shift(@$mask);
+        }
+    }
+}
+
+sub output_line
+{
+    my ($opts,$hline,$mask) = @_;
+
+    my $chr  = $$hline{chr};
+    my $pos  = $$hline{pos};
+    my $ref  = $$hline{ref};
+    my $alt  = $$hline{alt};
+    my $line = $$hline{line};
+
+    my $seq_pos = $$opts{length};
+    my $reflen  = length($ref);
+    my $from = $pos-$$opts{length};
+    my $to   = $pos+($reflen-1)+$$opts{length};
+    my $seq  = $$opts{faref}->get_slice($chr,$from,$to);
+    $seq = mask_sequence($opts,$seq,$chr,$from,$to,$mask);
+
+    my $reflen_ori = $reflen;
+    my ($len,$indel,$off) = $$opts{vcf}->is_indel($ref,$alt);
+    if ( $len<0 )
+    {
+        $seq_pos += $off;
+        $ref = $indel;
+        $reflen = abs($len);
+        $alt = '-';
+    }
+    elsif ( $len>0 )
+    {
+        $seq_pos += $off;
+        $ref = '-';
+        $alt = $indel;
+        $reflen = $off-1;
+    }
+
+    substr($seq,$seq_pos,$reflen,"[$ref/$alt]");
+    if ( $reflen_ori - $reflen > 0 ) 
+    { 
+        # for redundant pad bases which cannot be removed without changing the position, e.g. ACGT AC
+        $seq = substr($seq,$reflen_ori-$reflen); 
+    }
+    if ( $$line[7] eq '.' or !defined $$line[7] ) 
+    { 
+        $$line[7] = '';
+    }
+    else 
+    {
+        $$line[7] .= ';';
+    }
+    $$line[7] .= "FS=$seq";
+
+    print join("\t",@$line),"\n";
+}
+
+sub mask_sequence
+{
+    my ($opts,$seq,$chr,$from,$to,$mask) = @_;
+    for my $m (@$mask)
+    {
+        my $reflen = length($$m{ref});
+        if ( $$m{chr} ne $chr or $$m{pos}+$reflen<$from or $$m{pos}>$to ) { next; }
+        apply_mask($opts,\$seq,$$m{pos}-$from,$$m{ref},$$opts{mask_char}{default});
+    }
+    for my $file (@{$$opts{vcf_mask}})
+    {
+        my @tabix = `tabix $file $chr:$from-$to`;
+        for my $ret (@tabix)
+        {
+            my $items = $$opts{vcf}->split_mandatory($ret);
+            # In different situations one may want to treat indels differently. For
+            #   now, mask the whole REF string as for primer design it is safer to 
+            #   mask the whole thing; for example, a 2bp deletion can be reported by 
+            #   samtools as REF=GACACACA ALT=GACACA, the script will mask it all.
+            apply_mask($opts,\$seq,$$items[1]-$from,$$items[3],$$opts{mask_char}{$file});
+        }
+    }
+    for my $file (@{$$opts{bed_mask}})
+    {
+        my @tabix = `tabix $file $chr:$from-$to`;
+        for my $ret (@tabix)
+        {
+            my @items = split(/\t/,$ret);
+            apply_mask($opts,\$seq,$items[1]-$from+1,$items[2]-$from,$$opts{mask_char}{$file});
+        }
+    }
+    return $seq;
+}
+
+sub apply_mask
+{
+    my ($opts,$seq,$from,$ref,$mask_char) = @_;
+    if ( $from<0 ) { $from=0; }
+    my $ref_len = $ref=~/^\d+$/ ? $ref-$from+1 : length($ref);
+    my $seq_len = length($$seq);
+    if ( $from+$ref_len>=$seq_len ) { $ref_len = $seq_len - $from; }
+    if ( $ref_len<0 ) { return; }
+    if ( $ref_len==1 )
+    {
+        my $rpl = substr($$seq,$from,1);
+        $rpl = $mask_char eq 'lc' ? lc(substr($$seq,$from,1)) : $mask_char;
+        substr($$seq,$from,1,$rpl);
+        return;
+    }
+    my $rpl = substr($$seq,$from,$ref_len);
+    $rpl = $mask_char eq 'lc' ? lc(substr($$seq,$from,$ref_len)) : ($mask_char x $ref_len);
+    substr($$seq,$from,$ref_len,$rpl);
+}
+
+

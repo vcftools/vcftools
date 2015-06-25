@@ -1,0 +1,204 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Carp;
+use IPC::Open2;
+use Vcf;
+
+my $opts = parse_params();
+fill_ref_md5($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    die
+        "About: The script computes MD5 sum of the reference sequence and inserts\n",
+        "   'reference' and 'contig' tags into header as recommended by VCFv4.1.\n",
+        "   The VCF file must be compressed and tabix indexed, as it takes advantage\n",
+        "   of the lightning fast tabix reheader functionality.\n",
+        "Usage: fill-ref-md5 [OPTIONS] in.vcf.gz out.vcf.gz\n",
+        "Options:\n",
+        "   -d, --dictionary <file>             Where to read/write computed MD5s. Opened in append mode, existing records are not touched.\n",
+        "   -i, --info <AS:xx,SP:xx,TX:xx>      Optional info on reference assembly (AS), species (SP), taxonomy (TX)\n",
+        "   -r, --refseq <file>                 The reference sequence in fasta format indexed by samtools faidx\n",
+        "   -h, -?, --help                      This help message.\n",
+        "Examples:\n",
+        "   fill-ref-md5 -i AS:NCBIM37,SP:\"Mus\\ Musculus\" -r NCBIM37_um.fa  -d NCBIM37_um.fa.dict in.vcf.gz out.vcf.gz\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = {};
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-i' || $arg eq '--info' ) { $$opts{info}=shift(@ARGV); next; }
+        if ( $arg eq '-r' || $arg eq '--refseq' ) { $$opts{refseq}=shift(@ARGV); next; }
+        if ( $arg eq '-d' || $arg eq '--dictionary' ) { $$opts{dictionary}=shift(@ARGV); next; }
+        if ( -e $arg && !exists($$opts{file}) ) { $$opts{file} = $arg; next }
+        if ( exists($$opts{file}) && !exists($$opts{outfile}) ) { $$opts{outfile} = $arg; next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter \"$arg\" or non-existent file. Run -h for help.\n");
+    }
+    if ( !exists($$opts{refseq}) && !exists($$opts{dictionary}) ) { error("Expected one of -d or -r options\n"); }
+    if ( !exists($$opts{file}) ) { error("No input VCF file given.\n"); }
+    if ( !exists($$opts{outfile}) ) { error("No output VCF file given.\n"); }
+    return $opts;
+}
+
+sub read_dict
+{
+    my ($dict) = @_;
+    my $out = {};
+    if ( !$dict or !-e $dict ) { return $out }
+
+    open(my $fh,'<',$dict) or error("$dict: $!");
+    my $line=<$fh>;
+    if ( $line ne "\@HD\tVN:1.0\tSO:unsorted\n" ) { error("Could not parse $dict: $line"); }
+
+    while (my $line=<$fh>)
+    {
+        chomp($line);
+
+        # @SQ SN:5    LN:152537259    UR:file:/lustre/scratch102/projects/mouse/ref/NCBIM37_um.fa M5:f90804fb8fe9cb06076d51a710fb4563
+        my @items = split(/\t/,$line);
+        if ( @items != 5 ) { error("Could not parse $dict: $line"); }
+        my $item = shift(@items);
+        if ( $item ne '@SQ' ) { next; }
+        my $rec = {};
+        for my $item (@items)
+        {
+            if ( !($item=~/^([^:]+):(.+)$/) ) { error("Could not parse $dict: [$item] [$line]"); }
+            $$rec{$1} = $2;
+        }
+        if ( !exists($$rec{SN}) ) { error("No SN in [$dict] [$line]?"); }
+        $$out{$$rec{SN}} = $rec;
+    }
+    close($fh);
+
+    return $out;
+}
+
+sub add_to_dictionary
+{
+    my ($opts,$dict,$chr) = @_;
+    if ( !exists($$opts{refseq}) ) { error("The chromosome [$chr] not present in the dictionary and no reference sequence given.\n"); }
+
+    my($md5_in,$md5_out,$ok,$len);
+    eval { open2($md5_out,$md5_in,'md5sum'); $ok=1; };
+    if ( !$ok ) { error("md5sum: $!"); }
+
+    my $cmd = "samtools faidx $$opts{refseq} $chr";
+    open(my $refseq,"$cmd |") or error("$cmd: $!");
+    # get rid of the first ">$chr" line.
+    <$refseq>;
+    while (my $line=<$refseq>)
+    {
+        chomp($line);
+        print $md5_in $line;
+        $len += length($line);
+    }
+    close($refseq);
+
+    close($md5_in);
+    my @md5 = <$md5_out>;
+    close($md5_out);
+    $md5[0] =~ s/\s+.*$//;
+    chomp($md5[0]);
+
+    if ( !$len ) { error("The sequence [$chr] not present in $$opts{refseq}\n"); }
+
+    $$dict{$chr} = { dirty=>1, SN=>$chr, LN=>$len, UR=>'file://'.$$opts{refseq}, M5=>$md5[0] };
+    $$dict{dirty} = 1;
+} 
+
+sub write_dictionary
+{
+    my ($opts,$dict) = @_;
+    if ( !$$dict{dirty} or !exists($$opts{dictionary}) ) { return }
+    
+    my $needs_header = !-e $$opts{dictionary} ? 1 : 0;
+
+    open(my $fh,'>>',$$opts{dictionary}) or error("$$opts{dictionary}: $!");
+    print $fh "\@HD\tVN:1.0\tSO:unsorted\n" unless !$needs_header;
+    for my $key (sort keys %$dict)
+    {
+        if ( ref($$dict{$key}) ne 'HASH' or !$$dict{$key}{dirty} ) { next; }
+        my $sn =  $$dict{$key}{SN};
+        my $ln =  $$dict{$key}{LN};
+        my $ur =  $$dict{$key}{UR};
+        my $m5 =  $$dict{$key}{M5};
+        print $fh "\@SQ\tSN:$sn\tLN:$ln\tUR:$ur\tM5:$m5\n";
+    }
+    close($fh);
+}
+
+sub write_header
+{
+    my ($opts,$dict,$chroms) = @_;
+
+    my %info;
+    if ( exists($$opts{info}) )
+    {
+        $$opts{info} =~ s/AS:/assembly:/;
+        $$opts{info} =~ s/SP:/species:/;
+        $$opts{info} =~ s/TX:/taxonomy:/;
+        for my $item (split(/,/,$$opts{info}))
+        {
+            my ($key,$value) = split(/:/,$item);
+            if ( !defined $value ) { error("Could not parse the info: [$item] [$$opts{info}]"); }
+            $info{$key} = $value;
+        }
+    }
+
+    my $vcf = Vcf->new(file=>$$opts{file});
+    $vcf->parse_header();
+
+    my $uri = $$opts{refseq}=~m{^[^/:]+:} ? '' : 'file:';
+    $vcf->add_header_line({key=>'reference', value=>"$uri$$opts{refseq}"});
+    for my $chrom (@$chroms)
+    {
+        my %line = 
+        (
+            key      => 'contig',
+            ID       => $$dict{$chrom}{SN},
+            length   => $$dict{$chrom}{LN},
+            md5      => $$dict{$chrom}{M5},
+            %info
+        );
+        $vcf->add_header_line(\%line);
+    }
+
+    open(my $out,'>',"$$opts{outfile}.header") or error("$$opts{outfile}.header: $!");
+    print $out $vcf->format_header();
+    close($out);
+}
+
+sub fill_ref_md5
+{
+    my ($opts) = @_;
+
+    # List chromosomes
+    my @chroms = `tabix -l $$opts{file}`;
+    if ( $? ) { error("The command failed: tabix -l $$opts{file}\n"); }
+
+    # Read dictionary
+    my $dict = read_dict($$opts{dictionary},\@chroms);
+    for my $chr (@chroms)
+    {
+        chomp($chr);
+        if ( !exists($$dict{$chr}) ) { add_to_dictionary($opts,$dict,$chr); }
+    }
+    write_dictionary($opts,$dict);
+    write_header($opts,$dict,\@chroms);
+
+    `tabix -r $$opts{outfile}.header $$opts{file} > $$opts{outfile}`;
+}
+

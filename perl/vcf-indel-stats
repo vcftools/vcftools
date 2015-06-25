@@ -1,0 +1,150 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+do_stats($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "About: Currently calculates in-frame ratio.\n",
+        "Usage: vcf-indel-stats [OPTIONS] < in.vcf > out.txt\n",
+        "Options:\n",
+        "   -h, -?, --help                   This help message.\n",
+        "   -e, --exons <file>               Tab-separated file with exons (chr,from,to; 1-based, inclusive)\n",
+        "   -v, --verbose\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = { };
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( $arg eq '-e' || $arg eq '--exons' ) { $$opts{exons}=shift(@ARGV); next; }
+        if ( $arg eq '-v' || $arg eq '--verbose' ) { $$opts{verbose}=1; next; }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    return $opts;
+}
+
+sub init_regions
+{
+    my ($opts) = @_;
+    my $exname = $$opts{exons}=~/\.gz$/i ? "gunzip -c $$opts{exons} |" : "<$$opts{exons}";
+    open(my $exfh, $exname) or error("$exname: $!");
+    my %regs;
+    while (my $line=<$exfh>)
+    {
+        my ($chr,$from,$to) = split(/\t/,$line);
+        chomp($to);
+        push @{$regs{$chr}}, [$from,$to];
+    }
+    close($exfh);
+    for my $chr (keys %regs)
+    {
+        $regs{$chr} = [ sort { if ($$a[0]==$$b[0]) {return $$a[1]<=>$$b[1]} else {return $$a[0]<=>$$b[0]} } @{$regs{$chr}} ];
+    }
+    $$opts{regs}  = \%regs;
+    $$opts{iregs} = {};
+}
+
+sub do_stats
+{
+    my ($opts) = @_;
+    
+    init_regions($opts);
+    my $vcf = Vcf->new(fh=>\*STDIN);
+    $vcf->parse_header;
+
+    $$opts{in_frame} = $$opts{out_frame} = 0;
+    my ($prev_chr,$prev_pos);
+    my $ntot=0;
+    while (my $line=$vcf->next_line)
+    {
+        if ( substr($line,0,1) eq '#' ) { next; }
+        my $i=0;
+        my $j;
+        $j=index($line,"\t",$i); my $chr=substr($line,$i,$j-$i); $i=$j+1;
+        $j=index($line,"\t",$i); my $pos=substr($line,$i,$j-$i); $i=$j+1; 
+        $j=index($line,"\t",$i); $i=$j+1; 
+        $j=index($line,"\t",$i); my $ref=substr($line,$i,$j-$i); $i=$j+1; 
+        $j=index($line,"\t",$i); my $alt=substr($line,$i,$j-$i); $i=$j+1; 
+
+        if ( defined $prev_chr && $prev_chr eq $chr && $prev_pos>$pos ) { error("The VCF file must be sorted"); }
+        $prev_chr = $chr;
+        $prev_pos = $pos;
+    
+        if ( $alt eq '.' ) { next; }
+        #print "[$chr] [$pos] [$ref] [$alt]\n";
+
+        my $is_indel;
+        $i=0;
+        while (($j=index($alt,',',$i))!=-1)
+        {
+            my ($type,$len,$ht) = $vcf->event_type($ref,substr($alt,$i,$j-$i));
+            if ( $type eq 'i' or $type eq 'o' ) { check_csq($opts,$chr,$pos,$len); }
+            $i = $j+1;
+        }
+        my ($type,$len,$ht) = $vcf->event_type($ref,substr($alt,$i));
+        if ( $type eq 'i' or $type eq 'o' ) 
+        { 
+            $ntot++;
+            check_csq($opts,$chr,$pos,$len); 
+        }
+    }
+    printf "total\t%d\n", $ntot;
+    printf "in-frame\t%d\n", $$opts{in_frame};
+    printf "frameshift\t%d\n", $$opts{out_frame};
+    printf "ratio\t%f\n", ($$opts{out_frame}+$$opts{in_frame})?$$opts{out_frame}/($$opts{out_frame}+$$opts{in_frame}) : 0;
+}
+
+sub check_csq
+{
+    my ($opts,$chr,$pos,$len) = @_;
+    my $opos = $pos;
+
+    if ( !exists($$opts{regs}{$chr}) ) { return; }
+    my $regs = $$opts{regs}{$chr};
+    my $ir = exists($$opts{iregs}{$chr}) ? $$opts{iregs}{$chr} : 0;
+
+    while ( $ir<@$regs && $$regs[$ir][1] <= $pos ) { $ir++; }
+    $$opts{iregs}{$chr} = $ir;
+    if ( $ir>=@$regs ) { return; }
+    my $reg_to = $$regs[$ir][1];
+    if ( $reg_to<=$pos ) { return; }
+    
+    my $reg_from = $$regs[$ir][0];
+    my $to = $len<0 ? $pos-$len : $pos+1;
+    if ( $to<$reg_from ) { return; }
+
+    $pos++;
+    if ( $pos<$reg_from ) { $len += $reg_from-$pos; $pos = $reg_from; }
+    if ( $reg_to<$to && $len<0 ) { $len += $to-$reg_to; }
+
+    #print "\tinside $$regs[$ir][0] - $$regs[$ir][1] ($pos,$to,$len)\n";
+    #if ( $len%3 || ($pos-$reg_from)%3 ) { $$opts{out_frame}++; }
+    if ( $len%3 ) { $$opts{out_frame}++; }
+    else { $$opts{in_frame}++; }
+
+    if ( $$opts{verbose} )
+    {
+        print "$chr\t$opos\t$$regs[$ir][0]\t$$regs[$ir][1]\t", ($len%3 ? 'frameshift':'inframe') ,"\n";
+    }
+}
+

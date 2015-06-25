@@ -1,0 +1,146 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+use IPC::Open3 'open3';
+use IO::Select;
+
+my $opts = parse_params();
+do_validation($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "Usage: vcf-validator [OPTIONS] file.vcf.gz\n",
+        "Options:\n",
+        "   -d, --duplicates                 Warn about duplicate positions.\n",
+        "   -u, --unique-messages            Output all messages only once.\n",
+        "   -h, -?, --help                   This help message.\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = { unique=>0, duplicates=>0 };
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-d' || $arg eq '--duplicates' ) { $$opts{duplicates}=1; next; }
+        if ( $arg eq '-u' || $arg eq '--unique-messages' ) { $$opts{unique}=1; next; }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( (-e $arg or $arg=~m{^(?:ftp|http)://}) && !exists($$opts{file}) ) { $$opts{file}=$arg; next; }
+        error("Unknown parameter or non-existent file: \"$arg\". Run -h for help.\n");
+    }
+    return $opts;
+}
+
+sub do_validation
+{
+    my ($opts) = @_;
+
+    my %opts = $$opts{file} ? (file=>$$opts{file}) : (fh=>\*STDIN);
+
+    if ( !$$opts{unique} )
+    {
+		my $vcf = Vcf->new(%opts, warn_duplicates=>$$opts{duplicates});
+        $vcf->run_validation();
+        return;
+    }
+
+    my ($kid_in,$kid_out,$kid_err);
+
+    my $pid = open3($kid_in,$kid_out,$kid_err,'-');
+    if ( !defined $pid ) { error("Cannot fork: $!"); }
+
+    if ($pid)
+    {
+        $$opts{known_lines} = [];
+
+        my $sel = new IO::Select;
+        $sel->add($kid_out,$kid_err);
+
+        while(my @ready = $sel->can_read) 
+        {
+            foreach my $fh (@ready) 
+            {
+                my $line = <$fh>; 
+                if (not defined $line) 
+                {
+                    $sel->remove($fh); 
+                    next;         
+                }
+                print_or_discard_line($opts,$line);
+            }
+        }
+        print_summary($opts);
+    } 
+    else 
+    {
+		my $vcf = Vcf->new(%opts, warn_duplicates=>$$opts{duplicates});
+        $vcf->run_validation();
+        return;
+    }
+}
+
+sub print_or_discard_line
+{
+    my ($opts,$line) = @_;
+
+    my @items  = split(/\s+/,$line);
+    my $nitems = scalar @items;
+
+    for my $known (@{$$opts{known_lines}})
+    {
+        if ( @items != @{$$known{line}} ) { next; }
+
+        my $nmatches = 0;
+        for (my $i=0; $i<$nitems; $i++)
+        {
+            if ( $items[$i] eq $$known{line}[$i] ) { $nmatches++ }
+        }
+
+        if ( $nitems-$nmatches<3 ) 
+        { 
+            $$known{n}++;
+            return; 
+        }
+    }
+
+    push @{$$opts{known_lines}}, { line=>\@items, n=>1 };
+    print $line;
+}
+
+sub print_summary
+{
+    my ($opts) = @_;
+    my $n = 0;
+    for my $error (@{$$opts{known_lines}})
+    {
+        $n += $$error{n};
+    }
+    print "\n\n------------------------\n";
+    print "Summary:\n";
+    printf "\t%d errors total \n\n", $n;
+
+    $n = 0;
+    for my $error (sort {$$b{n}<=>$$a{n}} @{$$opts{known_lines}})
+    {
+        if ( $n++ > 50 ) { print "\n\nand more...\n"; last; }
+        printf "\t%d\t..\t%s\n", $$error{n},join(' ',@{$$error{line}});
+    }
+}
+

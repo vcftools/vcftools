@@ -1,0 +1,97 @@
+#!/usr/bin/env perl
+#
+# Authors: Adam Auton, Petr Danecek
+# (C) 2011
+
+use strict;
+use warnings;
+use Carp;
+
+my $opts = parse_params();
+fix_file($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+	my (@msg) = @_;
+	if ( scalar @msg ) { confess @msg; }
+	die
+		"About: Reads in a VCF file with any (commonly used) newline representation and outputs with the\n",
+		"	current system's newline representation.\n",
+		"Usage: vcf-fix-newlines [OPTIONS]\n",
+		"Options:\n",
+		"   -i, --info                      Report if the file is consistent with the current platform based.\n",
+		"   -h, -?, --help                  This help message.\n",
+		"Example:\n",
+		"	vcf-fix-newlines -i file.vcf\n",
+		"	vcf-fix-newlines file.vcf.gz > out.vcf\n",
+		"	cat file.vcf | vcf-fix-newlines > out.vcf\n",
+		"\n";
+}
+
+sub parse_params
+{
+	my $opts = {};
+	while (defined(my $arg=shift(@ARGV)))
+	{
+		if ( $arg eq '-i' || $arg eq '--info' ) { $$opts{info}=1; next }
+		if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+		if ( !exists($$opts{vcf}) && -e $arg ) { $$opts{vcf}=$arg; next; }
+		error("Unknown parameter \"$arg\". Run -h for help.\n");
+	}
+	return $opts;
+}
+
+sub fix_file
+{
+	my ($opts) = @_;
+
+	my $fh = \*STDIN;
+	if ( $$opts{vcf} )
+	{
+		if ( $$opts{vcf}=~/\.gz/i )
+		{
+			open($fh,"gunzip -c $$opts{vcf} |") or error("gunzip -c $$opts{vcf}: $!\n");
+		}
+		else
+		{
+			open($fh,'<',$$opts{vcf}) or error("$$opts{vcf}: $!\n");
+		}
+	}
+
+	# Read a small 1kb sample
+	binmode $fh or error("binmode: $!");
+	local $/ = \1024;
+	my $buf  = <$fh>;
+	if ( !defined $buf ) { error("No data read.\n"); }
+
+	# Check the origin
+	my ($in,$nl);
+	if ( $buf=~/\015\012/ ) { $in = 'Windows'; $nl=$&; }
+	elsif ( $buf=~/\015/ && !($buf=~/\012/) ) { $in = 'Old Mac'; $nl=$&; }
+	elsif ( $buf=~/\012/ && !($buf=~/\015/) ) { $in = 'UNIX'; $nl=$&; }
+	else
+	{
+		error("FIXME: Unable to determine the system which produced the file.\n");
+	}
+	if ( defined $in ) { warn("The file was generated on $in compatible system.\n"); }
+	if ( $$opts{info} ) { close($fh); return; }
+	if ( $nl eq "\n" ) { warn("No conversion needed.\n"); return; }
+
+	# Read the file and do the conversion
+	local $/ = $nl;
+	$buf .= <$fh>;
+	$buf =~ s/$nl/\n/g;
+	print $buf;
+
+	while($buf = <$fh>)
+	{
+		$buf =~ s/$nl/\n/g;
+		print $buf;
+	}
+	close($fh);
+}
+

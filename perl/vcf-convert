@@ -1,0 +1,183 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+use FindBin;
+use lib "$FindBin::Bin";
+use FaSlice;
+
+my $opts = parse_params();
+convert_file($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "About: Convert between VCF versions.\n",
+        "Usage: cat in.vcf | vcf-convert [OPTIONS] > out.vcf\n",
+        "Options:\n",
+        "   -r, --refseq <file>              The reference sequence in samtools faindexed fasta file. (Not required with SNPs only.)\n",
+        "   -v, --version <string>           4.0, 4.1, 4.2\n",
+        "   -h, -?, --help                   This help message.\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = { version=>'4.2' };
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-r' || $arg eq '--refseq' ) { $$opts{refseq}=shift(@ARGV); next; }
+        if ( $arg eq '-v' || $arg eq '--version' ) { $$opts{version}=shift(@ARGV); next; }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    return $opts;
+}
+
+
+sub convert_file
+{
+    my ($opts) = @_;
+
+    # How to recognise a number
+    my $FLOAT_RE = qr/^\-?\d+\.?\d*(?:[eE][+-]\d+)?$/;
+
+    my $vcf_in  = Vcf->new(fh=>\*STDIN);
+    my $vcf_out = Vcf->new(version=>$$opts{version});
+
+    if ( $$opts{version} < $$vcf_in{version} ) { warn("Downgrading of VCF versions is experimental: expect troubles!\n"); }
+
+    # Convert the header
+    $vcf_in->parse_header();
+    for (my $i=1; $i<@{$$vcf_in{header_lines}}; $i++)
+    {
+        $vcf_out->add_header_line($$vcf_in{header_lines}[$i]);
+    }
+    $vcf_out->add_columns(@{$$vcf_in{columns}});
+    print $vcf_out->format_header();
+
+    # Convert each data line
+    my $fa;
+    while (my $x=$vcf_in->next_data_hash())
+    {
+        # Convert missing (default) FORMAT values
+        for my $gt (values %{$$x{gtypes}})
+        {
+            for my $field (@{$$x{FORMAT}})
+            {
+                # Skip the GT tag, so that ploidy information is not lost ("./." would become ".")
+                if ( $field eq 'GT' ) { next; }
+                if ( $field eq 'FT' && $$gt{$field} eq $$vcf_in{filter_passed} ) { $$gt{$field}=$$vcf_out{filter_passed}; }
+                if ( exists($$vcf_in{defaults}{$field}) && $$vcf_in{defaults}{$field} eq $$gt{$field} )
+                {
+                    $$gt{$field} = $$vcf_out{defaults}{$field};
+                    next;
+                }
+                if ( !exists($$gt{$field}) ) { next; }
+                if ( exists($$vcf_in{header}{FORMAT}{$field}{default}) && $$vcf_in{header}{FORMAT}{$field}{default} eq $$gt{$field} )
+                {
+                    delete($$gt{$field});
+                    next;
+                }
+            }
+        }
+
+
+        # Change missing QUAL: In case they are numbers, do numeric comparison, as -1.0 is sometimes used instead of -1
+        if ( $$x{QUAL} eq $$vcf_in{defaults}{QUAL} 
+            or ($$x{QUAL}=~$FLOAT_RE && $$vcf_in{defaults}{QUAL}=~$FLOAT_RE && $$x{QUAL}==$$vcf_in{defaults}{QUAL}) ) 
+        { 
+            $$x{QUAL} = $$vcf_out{defaults}{QUAL}; 
+        }
+        for (my $i=0; $i<@{$$x{FILTER}}; $i++)
+        {
+            if ( $$x{FILTER}[$i] eq $$vcf_in{filter_passed} ) { $$x{FILTER}[$i] = $$vcf_out{filter_passed}; }
+        }
+
+        # Parse the ALT column and see if there are indels
+        my $has_indel = 0;
+        for my $alt (@{$$x{ALT}})
+        {
+            my ($type,$len,$ht) = $vcf_in->event_type($x,$alt);
+            if ( $type eq 's' or $type eq 'r' ) { next; }
+            if ( $type ne 'i' ) { error("FIXME: expected indel at $$x{CHROM}:$$x{POS}\n"); }
+
+            $has_indel = 1;
+        }
+
+        # If there is an indel, new REF and ALT must be changed
+        if ( $has_indel )
+        {
+            my $map = {};
+            my $alt_to_mapref = {};
+
+            for my $alt (@{$$x{ALT}})
+            {
+                my ($type,$len,$ht) = $vcf_in->event_type($x,$alt);
+                if ( $type eq 's' or $type eq 'r' )
+                {
+                    $$alt_to_mapref{$alt} = { ref=>$$x{REF}, alt=>$alt };
+                    $$map{$$x{REF}}{$alt} = 1;
+                    next;
+                }
+
+                if ( $type eq 'i' && $len>0 )
+                {
+                    my $tmp = $$x{REF}.$ht;
+                    $$alt_to_mapref{$alt} = { ref=>$$x{REF}, alt=>$tmp };
+                    $$map{$$x{REF}}{$tmp} = 1;
+                    next;
+                }
+                elsif ( $type eq 'i' && $len<0 )
+                {
+                    if ( !$fa )
+                    {
+                        if ( !$$opts{refseq} ) { error("Indels present, missing the -r option.\n"); }
+                        $fa = FaSlice->new(file=>$$opts{refseq},size=>1_000_000);
+                    }
+                    my $ref   = $fa->get_slice($$x{CHROM},$$x{POS},$$x{POS}+abs($len));
+                    my $nref1 = uc(substr($ref,0,1));
+                    my $oref1 = uc(substr($$x{REF},0,1));
+
+                    # Sanity check
+                    if ( $oref1 ne $nref1 ) 
+                    { 
+                        error("Sanity check failed: the ref does not agree at $$x{CHROM}:$$x{POS} .. [$nref1] in .fa,  [$oref1] in .vcf\n"); 
+                    }
+
+                    $$alt_to_mapref{$alt} = { ref=>$ref, alt=>$$x{REF} };
+                    $$map{$ref}{$$x{REF}} = 1;
+                    next;
+                }
+                else 
+                { 
+                    error("Uh, FIXME: $$x{CHROM}:$$x{POS} [$type] [$len] [$ht]\n"); 
+                }
+            }
+
+            $$x{REF} = $vcf_out->fill_ref_alt_mapping($map);
+            if ( !defined $$x{REF} ) { error("Failed on line $$x{CHROM}:$$x{POS}\n"); }
+            for (my $i=0; $i<@{$$x{ALT}}; $i++)
+            {
+                my $ori_ref = $$alt_to_mapref{$$x{ALT}[$i]}{ref};
+                my $ori_alt = $$alt_to_mapref{$$x{ALT}[$i]}{alt};
+                $$x{ALT}[$i] = $$map{$ori_ref}{$ori_alt};
+            }
+        }
+
+        print $vcf_out->format_line($x);
+    }
+}
+

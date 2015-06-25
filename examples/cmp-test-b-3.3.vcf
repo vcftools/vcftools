@@ -1,0 +1,12 @@
+##fileformat=VCFv3.3
+##INFO=DP,1,Integer,"Total Depth"
+##FORMAT=GT,1,String,"Genotype"
+##FORMAT=GQ,1,Integer,"Genotype Quality"
+##FORMAT=DP,1,Integer,"Read Depth"
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	A	B
+1	100100	.	G	C	0	.	DP=1	GT:GQ:DP	0|1:40:1	1/0:40:1
+1	100200	.	G	C	0	.	DP=1	GT:GQ:DP	1|0:40:1	0/0:40:1
+1	100300	.	G	C	0	.	DP=1	GT:GQ:DP	1/1:40:1	0/0:40:1
+1	100400	.	C	G	35	.	DP=1	GT:GQ:DP	1/1:41:1	0/0:40:1
+1	100500	.	A	G	0	.	DP=1	GT:GQ:DP	1/1:40:1	0/0:40:1
+1	100600	.	C	G	0	.	DP=1	GT:GQ:DP	1/1:40:1	0/0:40:1

@@ -1,0 +1,171 @@
+#!/usr/bin/env perl
+#
+# Notes:
+#   * The AA files can be downloaded from ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/pilot_data/technical/reference/ancestral_alignments
+#   * The program runs samtools, therefore the AA files must be gzipped (not b2zipped).
+#
+# support: pd3@sanger
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+use FindBin;
+use lib "$FindBin::Bin";
+use FaSlice;
+
+my $opts = parse_params();
+fill_aa($opts,$$opts{aa_file});
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    die
+        "About: This script fills ancestral alleles into INFO column of VCF files. It depends on samtools,\n",
+        "   therefore the fasta sequence must be gzipped (not bgzipped!) and indexed by samtools faidx.\n",
+        "   The AA files can be downloaded from\n",
+        "       ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/pilot_data/technical/reference/ancestral_alignments\n",
+        "   and processed as shown in the example below. This is because the sequences in the original files\n",
+        "   are named as 'ANCESTOR_for_chromosome:NCBI36:1:1:247249719', but the underlying FaSplice.pm\n",
+        "   requires names as 'chr1' or '1'.\n",
+        "Usage: fill-aa [OPTIONS] < in.vcf >out.vcf\n",
+        "Options:\n",
+        "   -a, --ancestral-allele <prefix>     Prefix to ancestral allele chromosome files.\n",
+        "   -t, --type <list>                   Variant types to process: all,indel,ref,snp. [all]\n",
+        "   -h, -?, --help                      This help message.\n",
+        "Example:\n",
+        "   # Get the files ready: compress by gzip and index by samtools faidx. Either repeat the\n",
+        "   # following command for each file manually\n",
+        "   bzcat human_ancestor_1.fa.bz2 | sed 's,^>.*,>1,' | gzip -c > human_ancestor_1.fa.gz\n",
+        "   samtools faidx human_ancestor_1.fa.gz\n",
+        "   \n",
+        "   # .. or use this loop (tested in bash shell)\n",
+        "   ls human_ancestor_*.fa.bz2 | while read IN; do\n",
+        "       OUT=`echo \$IN | sed 's,bz2\$,gz,'`\n",
+        "       CHR=`echo \$IN | sed 's,human_ancestor_,, ; s,.fa.bz2,,'`\n",
+        "       bzcat \$IN | sed \"s,^>.*,>\$CHR,\" | gzip -c > \$OUT\n",
+        "       samtools faidx \$OUT\n",
+        "   done\n",
+        "   \n",
+        "   # After this has been done, the following command should return 'TACGTGGcTGCTCTCACACAT'\n",
+        "   samtools faidx human_ancestor_1.fa.gz 1:1000000-1000020\n",
+        "   \n",
+        "   # Now the files are ready to use with fill-aa. Note that the VCF file\n",
+        "   # should be sorted (see vcf-sort), otherwise the performance would be seriously\n",
+        "   # affected.\n",
+        "   cat file.vcf | fill-aa -a human_ancestor_ 2>test.err | gzip -c >out.vcf.gz \n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = {};
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-a' || $arg eq '--ancestral-allele' ) { $$opts{aa_file} = shift(@ARGV); next }
+        if ( $arg eq '-t' || $arg eq '--type' ) 
+        { 
+            my %known = ( snp=>'s', indel=>'i', all=>'a', ref=>'r' );
+            my $types = shift(@ARGV);
+            for my $t (split(/,/,$types))
+            {
+                if ( !(exists($known{$t})) ) { error("Unknown type [$t] with -t [$types]\n"); }
+                $$opts{types}{$known{$t}} = 1;
+            }
+            if ( exists($$opts{types}{a}) )
+            {
+                $$opts{types}{s} = 1;
+                $$opts{types}{i} = 1;
+                $$opts{types}{r} = 1;
+            }
+            next;
+        }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{aa_file}) ) { error("Missing the -a option.\n") }
+    return $opts;
+}
+
+
+sub fill_aa
+{
+    my ($opts,$aa_fname) = @_;
+
+    my $n_unknown = 0;
+    my $n_filled_sites = 0;
+    my $n_filled_bases = 0;
+
+    my $vcf = Vcf->new(fh=>\*STDIN, assume_uppercase=>1);
+    $vcf->parse_header();
+    $vcf->add_header_line({key=>'INFO',ID=>'AA',Number=>1,Type=>'String',
+        Description=>'Ancestral Allele, ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/pilot_data/technical/reference/ancestral_alignments/README'});
+    print $vcf->format_header();
+
+    my %chr2fa = ();
+    my $nskipped = 0;
+    while (my $line = $vcf->next_line() )
+    {
+        my $rec = $vcf->next_data_array($line);
+        my $chr = $$rec[0];
+        my $pos = $$rec[1];
+        my $ref = $$rec[3];
+
+        if ( !exists($chr2fa{$chr}) )
+        {
+            my $fname = $aa_fname;
+            if ( ! -e $fname )
+            {
+                if ( -e "$fname$chr.fa.gz" ) { $fname = "$fname$chr.fa.gz"; }
+                else { error(qq[Neither "$fname" nor "$fname$chr.fa.gz" exists.\n]); }
+            }
+            $chr2fa{$chr} = FaSlice->new(file=>$fname, size=>100_000);
+        }
+
+        my $fa = $chr2fa{$chr};
+        my $ref_len = length($ref);
+        if ( exists($$opts{types}) && !exists($$opts{types}{a}) )
+        {
+            my $ok = 0;
+            for my $alt (split(/,/,$$rec[4]))
+            {
+                my ($type,$len,$ht) = $vcf->event_type($ref,$alt);
+                if ( exists($$opts{types}{$type}) ) { $ok=1; last; }
+            }
+            if ( !$ok )
+            {
+                print $line;
+                $nskipped++;
+                next;
+            }
+        }
+        my $aa = $ref_len==1 ? $fa->get_base($chr,$pos) : $fa->get_slice($chr,$pos,$pos+$ref_len-1);
+
+        if ( $aa )
+        {
+            $$rec[7] = $vcf->add_info_field($$rec[7],'AA'=>$aa);
+            $n_filled_sites++;
+            $n_filled_bases+=$ref_len;
+        }
+        else
+        {
+            $$rec[7] = $vcf->add_info_field($$rec[7],'AA'=>'.');
+            $n_unknown++;
+        }
+        print join("\t",@$rec),"\n";
+    }
+
+    print STDERR 
+        "AA sites filled  .. $n_filled_sites\n",
+        "AA bases filled  .. $n_filled_bases\n",
+        "No AAs           .. $n_unknown\n",
+        "Lines skipped    .. $nskipped\n";
+}
+
+

@@ -1,0 +1,1639 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+use FaSlice;
+
+my $opts = parse_params();
+if ( exists($$opts{plot}) )
+{
+    plot_stats($opts);
+}
+else
+{
+    compare_vcfs($opts);
+}
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "About: Compare bgzipped and tabix indexed VCF files. (E.g. bgzip file.vcf; tabix -p vcf file.vcf.gz)\n",
+        "Usage: vcf-compare [OPTIONS] file1.vcf file2.vcf ...\n",
+        "       vcf-compare -p plots chr1.cmp chr2.cmp ...\n",
+        "Options:\n",
+        "   -a, --apply-filters                 Ignore lines where FILTER column is anything else than PASS or '.'\n",
+        "   -c, --chromosomes <list|file>       Same as -r, left for backward compatibility. Please do not use as it will be dropped in the future.\n",
+        "   -d, --debug                         Debugging information. Giving the option multiple times increases verbosity\n",
+        "   -g, --cmp-genotypes                 Compare genotypes, not only positions\n",
+        "       --ignore-indels                 Exclude sites containing indels from genotype comparison\n",
+        "   -m, --name-mapping <list|file>      Use with -g when comparing files with differing column names. The argument to this options is a\n",
+        "                                           comma-separated list or one mapping per line in a file. The names are colon separated and must\n",
+        "                                           appear in the same order as the files on the command line.\n",
+        "       --INFO <string> [<int>]         Calculate genotype errors by INFO. Use zero based indecies if field has more than one value. Can be\n",
+	    "                                           given multiple times.\n",
+        "   -p, --plot <prefix>                 Create plots. Multiple files (e.g. per-chromosome outputs from vcf-compare) can be given.\n",
+        "   -R, --refseq <file>                 Compare the actual sequence, not just positions. Use with -w to compare indels.\n",
+        "   -r, --regions <list|file>           Process the given regions (comma-separated list or one region per line in a file).\n",
+        "   -s, --samples <list|file>           Process only the listed samples. Excluding unwanted samples may increase performance considerably.\n",
+        "   -t, --title <string>                Title for graphs (see also -p)\n",
+        "   -w, --win <int>                     In repetitive sequences, the same indel can be called at different positions. Consider\n",
+        "                                           records this far apart as matching (be it a SNP or an indel).\n",
+        "   -h, -?, --help                      This help message.\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    $0 =~ s{^.+/}{}; $0 .= "($Vcf::VERSION)";
+    my $opts = 
+    { 
+        args => [$0, @ARGV],
+        positions => 0,
+	    INFOgroup => [ ],
+	    INFOgroupIdx => { },
+    };
+    while (my $arg=shift(@ARGV))
+    {
+        if (                 $arg eq '--all-samples-af' ) { $$opts{all_samples_af}=1; next; }
+        if (                 $arg eq '--INFO/AF1-af' ) { $$opts{INFO_AF1_af}=1; next; }
+        if (                 $arg eq '--ignore-indels' ) { $$opts{ignore_indels}=1; next; }
+        if (                 $arg eq '--high-conf-gls' ) { $$opts{high_confidence_gls}=shift(@ARGV); next; }
+        if (                 $arg eq '--INFO' ) 
+        { 
+            # --INFO IMP2 1  (calculate errors by second value of INFO/IMP2 
+            my $infoTag = shift(@ARGV); 
+            unshift @{$$opts{INFOgroup}}, $infoTag;
+            if ($ARGV[0] =~ /^\d+$/ ) { $$opts{INFOgroupIdx}{$infoTag} = shift(@ARGV); } 
+            next; 
+        }
+        if (                 $arg eq '--error-by-gl' ) { $$opts{err_by_gl}=1; next; }
+        if ( $arg eq '-a' || $arg eq '--apply-filters' ) { $$opts{apply_filters}=1; next; }
+        if ( $arg eq '-m' || $arg eq '--name-mapping' ) { $$opts{mappings_list}=shift(@ARGV); next; }
+        if ( $arg eq '-R' || $arg eq '--refseq' ) { $$opts{refseq}=shift(@ARGV); next; }
+        if ( $arg eq '-c' || $arg eq '--chromosomes' ) { $$opts{regions_list}=shift(@ARGV); next; }
+        if ( $arg eq '-r' || $arg eq '--regions' ) { $$opts{regions_list}=shift(@ARGV); next; }
+        if ( $arg eq '-g' || $arg eq '--cmp-genotypes' ) { $$opts{cmp_genotypes}=1; next; }
+        if ( $arg eq '-s' || $arg eq '--samples'  ) 
+        { 
+            my $samples = shift(@ARGV);
+            my @samples = ( -e $samples ) ? read_list($samples) : split(/,/,$samples);
+            $$opts{samples} = \@samples;
+            next;
+        }
+        if ( $arg eq '-d' || $arg eq '--debug' ) { $$opts{debug}++; next; }
+        if ( $arg eq '-w' || $arg eq '--win' ) { $$opts{win}=shift(@ARGV); next; }
+        if ( $arg eq '-p' || $arg eq '--plot' ) { $$opts{plot}=shift(@ARGV); next; }
+        if ( $arg eq '-t' || $arg eq '--title' ) { $$opts{title}=shift(@ARGV); next; }
+        if ( -e $arg ) { push @{$$opts{files}}, $arg; next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter or non-existent file \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{files}) ) { error("What files should be compared?\n") }
+    return $opts;
+}
+
+sub read_list
+{
+    my ($fname) = @_;
+    my @regions;
+    if ( -e $fname )
+    {
+        open(my $rgs,'<',$fname) or error("$fname: $!");
+        while (my $line=<$rgs>)
+        {
+            chomp($line);
+            push @regions, $line;
+        }
+        close($rgs);
+    }
+    else
+    {
+        @regions = split(/,/,$fname);
+    }
+    return (@regions);
+}
+
+sub read_mappings_list
+{
+    my ($fname,$files) = @_;
+    my @maps = read_list($fname);
+    my %mapping;
+    for my $map (@maps)
+    {
+        my @items = split(/:/,$map);
+        if ( scalar @items != scalar @$files ) { error(sprintf "Expected %d column names, found [$map].\n", scalar @$files); }
+        for (my $i=1; $i<@$files; $i++)
+        {
+            $mapping{$$files[$i]}{$items[$i]} = $items[0];
+            warn("Using column name '$items[0]' for $$files[$i]:$items[$i]\n");
+        }
+    }
+    return \%mapping;
+}
+
+sub compare_vcfs
+{
+    my ($opts) = @_;
+
+    $$opts{match} = {};
+    $$opts{hapls} = {};
+
+    # Open the VCF files and initialize the list of chromosomes
+    my @vcfs;
+    my (@regions,%has_chrom,$mappings);
+    if ( exists($$opts{regions_list}) ) { @regions = read_list($$opts{regions_list}); }
+    if ( exists($$opts{mappings_list}) ) { $mappings = read_mappings_list($$opts{mappings_list},$$opts{files}); }
+
+    print "# This file was generated by vcf-compare.\n";
+    print "# The command line was: ", join(' ',@{$$opts{args}}), "\n";
+    print "#\n";
+    if ( $$opts{debug} )
+    {
+        print 
+            "#SD Site discordance. Use `grep ^SD | cut -f 2-` to extract this part.\n",
+            "#SD The columns are: \n",
+            "#SD        1 .. chromosome\n",
+            "#SD        2 .. position\n",
+            "#SD        3 .. number of Hom_RR matches\n",
+            "#SD        4 .. number of Het_RA matches\n",
+            "#SD        5 .. number of Hom_AA matches\n",
+            "#SD        6 .. number of Hom_RR mismatches\n",
+            "#SD        7 .. number of Het_RA mismatches\n",
+            "#SD        8 .. number of Hom_AA mismatches\n",
+            "#SD        9 .. site's non-reference discordance rate\n";
+        print
+            "#AM ALT mismatches. The columns are:\n",
+            "#AM        1 .. chromosome\n",
+            "#AM        2 .. position\n",
+            "#AM        3 .. ALT in the first file\n",
+            "#AM        4 .. differing ALT\n";
+        print
+            "#RM REF mismatches. The columns are:\n",
+            "#RM        1 .. chromosome\n",
+            "#RM        2 .. position\n",
+            "#RM        3 .. REF in the first file\n",
+            "#RM        4 .. differing REF\n";
+    }
+
+    my $ifile = 0;
+    for my $file (@{$$opts{files}})
+    {
+        my $vcf = Vcf->new(file=>$file);
+        $$vcf{vcf_compare_ID} = $ifile++;
+        $vcf->parse_header();
+        $vcf->close();
+        $$vcf{nread} = 0;
+        push @vcfs, $vcf;
+
+        # Update the list of known chromosomes
+        if ( !exists($$opts{regions_list}) )
+        {
+            my $chrms = $vcf->get_chromosomes();
+            for my $chr (@$chrms)
+            {
+                if ( exists($has_chrom{$chr}) ) { next; }
+                $has_chrom{$chr} = 1;
+                push @regions, $chr;
+            }
+        }
+
+        # Check if column names need to be renamed
+        if ( defined $mappings && exists($$mappings{$$vcf{file}}) ) 
+        { 
+            $$vcf{_col_mapping} = $$mappings{$$vcf{file}}; 
+            for my $name (keys %{$$vcf{_col_mapping}})
+            {
+                if ( !exists($$vcf{has_column}{$name}) ) { error("No such column [$name] in the file $$vcf{file}\n"); }
+                my $new_name = $$vcf{_col_mapping}{$name};
+                $$vcf{_col_mapping_rev}{$new_name} = $name;
+            }
+        }
+    }
+
+    # Include only matching samples in haplotype comparison
+    if ( $$opts{cmp_genotypes} )
+    {
+        my %all_samples;
+        for my $vcf (@vcfs)
+        {
+            if ( exists $$opts{samples} ) 
+            { 
+                for my $sample (@{$$opts{samples}}) 
+                { 
+                    if ( exists($$vcf{_col_mapping}) && exists($$vcf{_col_mapping}{$sample}) ) { $sample = $$vcf{_col_mapping}{$sample}; }
+                    if ( exists($$vcf{has_column}{$sample}) ) { $all_samples{$sample}++ }
+                }
+            }
+            else
+            {
+                my @samples = $vcf->get_samples();
+                for my $sample (@samples) 
+                { 
+                    if ( exists($$vcf{_col_mapping}) && exists($$vcf{_col_mapping}{$sample}) ) { $sample = $$vcf{_col_mapping}{$sample}; }
+                    $all_samples{$sample}++ 
+                }
+            }
+        }
+        my @include_samples;
+        while (my ($sample,$count)=each %all_samples)
+        {
+            if ( $count != scalar @vcfs ) { next; }
+            push @include_samples, $sample;
+        }
+        if ( !@include_samples ) 
+        { 
+            error("Error: There is no overlap between any of the samples, yet haplotype comparison was requested.\n"); 
+        }
+        $$opts{gt_samples_compared} = scalar @include_samples;
+        for my $vcf (@vcfs)
+        {
+            my @include;
+            if ( !exists($$vcf{_col_mapping}) ) { @include=@include_samples; }
+            else
+            {
+                for my $sample (@include_samples)
+                {
+                    push @include, exists($$vcf{_col_mapping_rev}{$sample}) ? $$vcf{_col_mapping_rev}{$sample} : $sample
+                }
+            }
+            $vcf->set_samples(include=>\@include);
+        }
+    }
+
+    # Go through all the files simultaneously and get the stats.
+    for my $region (@regions)
+    {
+        # Open files
+        for my $vcf (@vcfs)
+        {
+            delete($$vcf{last_line});
+            $vcf->open(region=>$region);
+            delete($$vcf{eof});
+        }
+        do_region_stats($opts,\@vcfs);
+    }
+
+    report_stats($opts,\@vcfs);
+
+    for my $vcf (@vcfs)
+    {
+        if ( !$$vcf{nread} ) { warn("Warning: Read 0 lines from $$vcf{file}, the tabix index may be broken.\n"); }
+    }
+}
+
+sub report_stats
+{
+    my ($opts,$vcfs) = @_;
+
+    # if ( $$opts{debug} )
+    # {
+    #     use Data::Dumper; print Dumper($opts);
+    # }
+
+    my (@counts,%totals);
+    while (my ($key,$num) = each %{$$opts{match}})
+    {
+        my @files = split(/'/,$key);
+        for my $file (@files)
+        {
+            $totals{$file} += $num;
+        }
+        push @counts, {count=>$num, files=>[@files]};
+    }
+
+    print 
+        "#VN 'Venn-Diagram Numbers'. Use `grep ^VN | cut -f 2-` to extract this part.\n",
+        "#VN The columns are: \n",
+        "#VN        1  .. number of sites unique to this particular combination of files\n",
+        "#VN        2- .. combination of files and space-separated number, a fraction of sites in the file\n";
+    for my $rec (sort {$$a{count}<=>$$b{count}} @counts)
+    {
+        my $num   = $$rec{count};
+        my $files = $$rec{files};
+
+        print "VN\t$num";
+        for my $file (@$files)
+        {
+            printf "\t$file (%.1f%%)", $num*100.0/$totals{$file};
+        }
+        print "\n";
+    }
+
+    if ( $$opts{refseq} && $$opts{indels} )
+    {
+        print 
+            "#IN Indel Numbers. Use `grep ^IN | cut -f 2-` to extract this part.\n",
+            "#IN .. todo\n",
+            "#IN Number of matching indel haplotypes shared across:\n";
+        while (my ($file,$stat) = each %{$$opts{indels}})
+        {
+            print "IN\t$file\n";
+            my $match    = $$stat{match} ? $$stat{match} : 0;
+            my $mismatch = $$stat{mismatch} ? $$stat{mismatch} : 0;
+            printf "\t\tNumber of matches: %d\n", $match;
+            printf "\t\t       mismatches: %d\n", $mismatch;
+            printf "\t\t       error rate: %.1f%%\n", 100*$mismatch/($match+$mismatch);
+        }
+    }
+
+    print "#SN Summary Numbers. Use `grep ^SN | cut -f 2-` to extract this part.\n";
+    printf "SN\tNumber of REF matches:\t%d\n", exists($$opts{ref_match}) ? $$opts{ref_match} : 0;
+    printf "SN\tNumber of ALT matches:\t%d\n", exists($$opts{alt_match}) ? $$opts{alt_match} : 0;
+    printf "SN\tNumber of REF mismatches:\t%d\n", exists($$opts{ref_mismatch}) ? $$opts{ref_mismatch} : 0;
+    printf "SN\tNumber of ALT mismatches:\t%d\n", exists($$opts{alt_mismatch}) ? $$opts{alt_mismatch} : 0;
+    printf "SN\tNumber of samples in GT comparison:\t%d\n", $$opts{gt_samples_compared} ? $$opts{gt_samples_compared} : 0;
+
+    my $out;
+    for my $vcf (@$vcfs)
+    {
+        if ( !exists($totals{$$vcf{file}}) ) { $totals{$$vcf{file}}=0; }
+        if ( $totals{$$vcf{file}} == $$vcf{nread} ) { next; }
+
+        my $diff  = $$vcf{nread}-$totals{$$vcf{file}};
+        my $reported = $totals{$$vcf{file}};
+        my $total = $$vcf{nread};
+        $out .= sprintf "SN\tNumber of lost sites:\t%d\t%.1f%%\t%d\t%d\t%s\n", $diff,$diff*100.0/$total,$total,$reported,$$vcf{file};
+    }
+    if ( $out )
+    {
+        print "# Number of sites lost due to grouping (e.g. duplicate sites): lost, %lost, read, reported, file\n";
+        print $out;
+    }
+
+
+    if ( !$$opts{cmp_genotypes} ) { return; }
+
+    my %summary;
+    for my $id (keys %{$$opts{hapls}})
+    {
+        for my $key (qw(hom_RR_ het_RA_ hom_AA_ het_AA_))
+        { 
+            if ( !exists($$opts{hapls}{$id}{$key.'gtype_mismatch'}) ) { $$opts{hapls}{$id}{$key.'gtype_mismatch'}=0; }
+            $$opts{hapls}{$id}{total_gtype_mismatch} += $$opts{hapls}{$id}{$key.'gtype_mismatch'};
+
+            if ( !exists($$opts{hapls}{$id}{$key.'gtype_match'}) ) { $$opts{hapls}{$id}{$key.'gtype_match'}=0; }
+            $$opts{hapls}{$id}{total_gtype_match} += $$opts{hapls}{$id}{$key.'gtype_match'};
+
+            if ( !exists($$opts{hapls}{$id}{$key.'gtype_lost'}) ) { $$opts{hapls}{$id}{$key.'gtype_lost'}=0; }
+            $$opts{hapls}{$id}{total_gtype_lost} += $$opts{hapls}{$id}{$key.'gtype_lost'};
+
+            if ( !exists($$opts{hapls}{$id}{$key.'gtype_gained'}) ) { $$opts{hapls}{$id}{$key.'gtype_gained'}=0; }
+            $$opts{hapls}{$id}{total_gtype_gained} += $$opts{hapls}{$id}{$key.'gtype_gained'};
+
+            $summary{$key}{match} += $$opts{hapls}{$id}{$key.'gtype_match'};
+            $summary{$key}{mismatch} += $$opts{hapls}{$id}{$key.'gtype_mismatch'};
+        }
+        for my $key (qw(het_RA_ het_AA_))
+        { 
+            if ( !exists($$opts{hapls}{$id}{$key.'phase_match'}) ) { $$opts{hapls}{$id}{$key.'phase_match'}=0; }
+            $$opts{hapls}{$id}{total_phase_match} += $$opts{hapls}{$id}{$key.'phase_match'};
+
+            if ( !exists($$opts{hapls}{$id}{$key.'phase_mismatch'}) ) { $$opts{hapls}{$id}{$key.'phase_mismatch'}=0; }
+            $$opts{hapls}{$id}{total_phase_mismatch} += $$opts{hapls}{$id}{$key.'phase_mismatch'};
+
+            if ( !exists($$opts{hapls}{$id}{$key.'phase_lost'}) ) { $$opts{hapls}{$id}{$key.'phase_lost'}=0; }
+            $$opts{hapls}{$id}{total_phase_lost} += $$opts{hapls}{$id}{$key.'phase_lost'};
+        }
+    }
+    print 
+        "#GS Genotype Comparison Summary. Use `grep ^GS | cut -f 2-` to extract this part.\n",
+        "#GS The columns are:\n",
+        "#GS        1  .. variant type\n",
+        "#GS        2  .. number of mismatches\n",
+        "#GS        3  .. number of matches\n",
+        "#GS        4  .. discordance\n";
+    print_gs($opts,\%summary);
+
+    print 
+        "\n",
+        "#GC Genotype Comparison. Use `grep ^GC | cut -f 2-` to extract this part.\n",
+        "#GC The columns are:\n",
+        "#GC       1     .. Sample\n",
+        "#GC       2-6   .. Gtype mismatches: total hom_RR hom_AA het_RA het_AA \n",
+        "#GC       7-9   .. Gtype lost: total het_RA het_AA \n",
+        "#GC       10-14 .. Gtype gained: total hom_RR hom_AA het_RA het_AA \n",
+        "#GC       15-17 .. Phase lost: total het_RA het_AA \n",
+        "#GC       18    .. Phase gained\n",
+        "#GC       19-23 .. Matching sites: total hom_RR hom_AA het_RA het_AA \n",
+        "#GC       24    .. Phased matches: het_RA \n",
+        "#GC       25    .. Misphased matches: het_RA \n";
+
+    for my $id (keys %{$$opts{hapls}})
+    {
+        print "GC\t$id";
+        for my $key (qw(total_ hom_RR_ hom_AA_ het_RA_ het_AA_)) { print "\t",$$opts{hapls}{$id}{$key.'gtype_mismatch'}; }
+        for my $key (qw(total_ het_RA_ het_AA_)) { print "\t",$$opts{hapls}{$id}{$key.'gtype_lost'}; }
+        for my $key (qw(total_ hom_RR_ hom_AA_ het_RA_ het_AA_)) { print "\t",$$opts{hapls}{$id}{$key.'gtype_gained'}; }
+        for my $key (qw(total_ het_RA_ het_AA_)) { print "\t",$$opts{hapls}{$id}{$key.'phase_lost'}; }
+        if ( !exists($$opts{hapls}{$id}{phase_gained}) ) { $$opts{hapls}{$id}{phase_gained}=0; }
+        print "\t",$$opts{hapls}{$id}{phase_gained};
+        for my $key (qw(total_ hom_RR_ hom_AA_ het_RA_ het_AA_)) { print "\t",$$opts{hapls}{$id}{$key.'gtype_match'}; }
+        for my $key (qw(het_RA_)) { print "\t",$$opts{hapls}{$id}{$key.'phase_match'}; }
+        for my $key (qw(het_RA_)) { print "\t",$$opts{hapls}{$id}{$key.'phase_mismatch'}; }
+        print "\n";
+    }
+
+    print 
+        "#AF Number of matching and mismatching genotypes vs non-ref allele frequency. Use `^AF | cut -f 2-` to extract this part.\n",
+        "#AF The columns are:\n",
+        "#AF      1  .. Non-ref allele count\n",
+        "#AF      2  .. Hom(RR) matches\n",
+        "#AF      3  .. Het(RA) matches\n",
+        "#AF      4  .. Hom(AA) matches\n",
+        "#AF      5  .. Het(AA) matches\n",
+        "#AF      6  .. Hom(RR) mismatches\n",
+        "#AF      7  .. Het(RA) mismatches\n",
+        "#AF      8  .. Hom(AA) mismatches\n",
+        "#AF      9  .. Het(AA) mismatches\n";
+    for my $ac (sort {$a<=>$b} keys %{$$opts{counts_by_af}})
+    {
+        print "AF\t$ac";
+        for my $key (qw(hom_RR_ het_RA_ hom_AA_ het_AA_))
+        {
+            print "\t", $$opts{counts_by_af}{$ac}{$key}{matches} ? $$opts{counts_by_af}{$ac}{$key}{matches} : 0;
+        }
+        for my $key (qw(hom_RR_ het_RA_ hom_AA_ het_AA_))
+        {
+            print "\t", $$opts{counts_by_af}{$ac}{$key}{mismatches} ? $$opts{counts_by_af}{$ac}{$key}{mismatches} : 0;
+        }
+        print "\n";
+    }
+
+    for my $infoTag ( @{$$opts{INFOgroup}} ) 
+    {
+	    print 
+            "#INFO/".$infoTag." Number of matching and mismatching genotypes vs INFO/". $infoTag. (exists($$opts{INFOgroupIdx}{$infoTag}) ? "[".$$opts{INFOgroupIdx}{$infoTag}."]" : ""). ". Use `^INFO/".$infoTag." | cut -f 2-` to extract this part.\n",
+            "#INFO/".$infoTag." The columns are:\n",
+            "#INFO/".$infoTag."      1  .. INFO/". $infoTag. (exists($$opts{INFOgroupIdx}{$infoTag}) ? "[".$$opts{INFOgroupIdx}{$infoTag}."]\n" : "\n"),
+            "#INFO/".$infoTag."      2  .. Hom(RR) matches\n",
+            "#INFO/".$infoTag."      3  .. Het(RA) matches\n",
+            "#INFO/".$infoTag."      4  .. Hom(AA) matches\n",
+            "#INFO/".$infoTag."      5  .. Het(AA) matches\n",
+            "#INFO/".$infoTag."      6  .. Hom(RR) mismatches\n",
+            "#INFO/".$infoTag."      7  .. Het(RA) mismatches\n",
+            "#INFO/".$infoTag."      8  .. Hom(AA) mismatches\n",
+            "#INFO/".$infoTag."      9  .. Het(AA) mismatches\n",
+            "#INFO/".$infoTag."      10 .. Non-reference Discordance Rate\n";
+
+        for my $info (sort {$a<=>$b} keys %{$$opts{counts_by_INFO}{$infoTag}})
+        {
+            print "INFO/".$infoTag."\t$info";
+            my $nonRefMatches=-$$opts{counts_by_INFO}{$infoTag}{$info}{"hom_RR_"}{matches} ? $$opts{counts_by_INFO}{$infoTag}{$info}{"hom_RR_"}{matches} : 0;
+            my $mismatches=0;
+
+            for my $key (qw(hom_RR_ het_RA_ hom_AA_ het_AA_))
+            {
+                print "\t", $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{matches} ? $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{matches} : 0;
+                $nonRefMatches += $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{matches} ? $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{matches} : 0;
+            }
+            for my $key (qw(hom_RR_ het_RA_ hom_AA_ het_AA_))
+            {
+                print "\t", $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{mismatches} ? $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{mismatches} : 0;
+                $mismatches += $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{mismatches} ? $$opts{counts_by_INFO}{$infoTag}{$info}{$key}{mismatches} : 0;
+            }
+            printf "\t%.2f\n",$mismatches*100.0/($mismatches+$nonRefMatches);
+        }
+
+    }
+
+    print "#DP Counts by depth. Use `grep ^DP | cut -f 2-` to extract this part.\n";
+    print "#DP The columns are:\n";
+    print "#DP      1 .. depth\n";
+    print "#DP      2 .. RR matches\n";
+    print "#DP      3 .. RA matches\n";
+    print "#DP      4 .. AA matches\n";
+    print "#DP      5 .. RR -> RA mismatches\n";
+    print "#DP      6 .. RR -> AA mismatches\n";
+    print "#DP      7 .. RA -> RR mismatches\n";
+    print "#DP      8 .. RA -> AA mismatches\n";
+    print "#DP      9 .. AA -> RR mismatches\n";
+    print "#DP     10 .. AA -> RA mismatches\n";
+    for my $dp (sort {$a<=>$b} keys %{$$opts{counts_by_dp}})
+    {
+        print "DP\t$dp";
+        for my $type (qw(hom_RR_-hom_RR_ het_RA_-het_RA_ hom_AA_-hom_AA_ hom_RR_-het_RA_ hom_RR_-hom_AA_ het_RA_-hom_RR_ het_RA_-hom_AA_ hom_AA_-hom_RR_ hom_AA_-het_RA_))
+        {
+            printf "\t%d", exists($$opts{counts_by_dp}{$dp}{$type}) ? $$opts{counts_by_dp}{$dp}{$type} : 0;
+        }
+        print "\n";
+    }
+
+    if ( exists($$opts{counts_by_gl}) )
+    {
+        print "#EQ Errors by quality. Use `grep ^EQ | cut -f 2-` to extract this part.\n";
+        print "#EQ The columns are:\n";
+        print "#EQ      1 .. GL\n";
+        print "#EQ      2 .. number of matches\n";
+        print "#EQ      3 .. number of mismatches\n";
+        for my $qual (sort {$a<=>$b} keys %{$$opts{counts_by_gl}})
+        {
+            printf "EQ\t%s\t%d\t%d\n", $qual, 
+                $$opts{counts_by_gl}{$qual}{match}?$$opts{counts_by_gl}{$qual}{match}:0, 
+                $$opts{counts_by_gl}{$qual}{mismatch}?$$opts{counts_by_gl}{$qual}{mismatch}:0;
+        }
+    }
+
+    if ( $$opts{debug} )
+    {
+        print "#MT Mismatch Types\n";
+        for my $t1 (keys %{$$opts{mismatch_types}})
+        {
+            for my $t2 (keys %{$$opts{mismatch_types}{$t1}})
+            {
+                print "MT\t$t1\t$t2\t$$opts{mismatch_types}{$t1}{$t2}\n";
+            }
+        }
+    }
+}
+
+sub print_gs
+{
+    my ($opts,$stats) = @_;
+    my ($ndr_ms,$ndr_m,@summary);
+    for my $key (qw(hom_RR het_RA hom_AA het_AA))
+    {
+        my $m   = $$stats{"${key}_"}{match};
+        my $ms  = $$stats{"${key}_"}{mismatch};
+        if ( !$m ) { $m=0; }
+        if ( !$ms ) { $ms=0; }
+
+        my $err = $m?$ms*100.0/($m+$ms):0;
+        printf "GS\t$key\t%d\t%d\t%.2f%%\n", $ms,$m,$err;
+        $ndr_ms += $ms;
+        $ndr_m  += $key eq 'hom_RR' ? 0 : $m;
+
+        if ( $key eq 'het_AA' ) { next; }
+        if ( $key=~/_(.+)$/ )
+        {
+            push @summary, sprintf "%s %.2f", $1,$err;
+        }
+    }
+    my $err = $ndr_m+$ndr_ms ? $ndr_ms*100.0/($ndr_m+$ndr_ms) : 0;
+    unshift @summary, sprintf "NDR %.2f", $err;
+
+    printf 
+        "SN\tNon-reference Discordance Rate (NDR):\t%.2f\n", $err;
+    print "SN\tSummary:\t", join(', ', @summary), "\n";
+}
+
+sub read_stats
+{
+    my ($stats,$file) = @_;
+    open(my $fh,'<',$file) or error("$file: $!");
+    while (my $line=<$fh>)
+    {
+        if ( $line=~/^#/ ) { next; }
+        my @items = split(/\t/,$line);
+        chomp($items[-1]);
+        if ( $items[0] eq 'DP' )
+        {
+            my $dp = $items[1];
+            $$stats{dp}{ndist}{$dp}  += $items[2] + $items[3] + $items[4] + $items[5] + $items[6] + $items[7] + $items[8] + $items[9] + $items[10];
+            $$stats{dp}{RR}{RR}{$dp} += $items[2]; 
+            $$stats{dp}{RA}{RA}{$dp} += $items[3]; 
+            $$stats{dp}{AA}{AA}{$dp} += $items[4]; 
+            $$stats{dp}{RR}{RA}{$dp} += $items[5]; 
+            $$stats{dp}{n}{RR}{RA}   += $items[5];
+            $$stats{dp}{RR}{AA}{$dp} += $items[6];
+            $$stats{dp}{n}{RR}{AA}   += $items[6];
+            $$stats{dp}{RA}{RR}{$dp} += $items[7];
+            $$stats{dp}{n}{RA}{RR}   += $items[7];
+            $$stats{dp}{RA}{AA}{$dp} += $items[8];
+            $$stats{dp}{n}{RA}{AA}   += $items[8];
+            $$stats{dp}{AA}{RR}{$dp} += $items[9];
+            $$stats{dp}{n}{AA}{RR}   += $items[9];
+            $$stats{dp}{AA}{RA}{$dp} += $items[10];
+            $$stats{dp}{n}{AA}{RA}   += $items[10];
+        }
+        elsif ( $items[0] eq 'AF' )
+        {
+            my $af = $items[1];
+            $$stats{af}{RR}{$af}{matches}    += $items[2];
+            $$stats{af}{RA}{$af}{matches}    += $items[3];
+            $$stats{af}{AA}{$af}{matches}    += $items[4];
+            $$stats{af}{RR}{$af}{mismatches} += $items[6];
+            $$stats{af}{RA}{$af}{mismatches} += $items[7];
+            $$stats{af}{AA}{$af}{mismatches} += $items[8];
+        }
+        elsif ( $items[0] eq 'GS' )
+        {
+            my $type = $items[1];
+            $$stats{gs}{$type.'_'}{mismatch} += $items[2];
+            $$stats{gs}{$type.'_'}{match}    += $items[3];
+        }
+        elsif ( $items[0] eq 'EQ' )
+        {
+            my $gl = $items[1];
+            $$stats{counts_by_gl}{$gl}{mismatch} += $items[2];
+            $$stats{counts_by_gl}{$gl}{match}    += $items[3];
+        }
+    }
+    close($fh);
+}
+
+sub make_dir
+{
+    my ($prefix) = @_;
+    if ( $prefix=~m{/} )
+    {
+        # A directory should be created. This will populate dir and prefix, for example
+        #   prefix  -> dir      prefix
+        #   ----------------------------
+        #   out                 out.dump
+        #   out/       out/     out/out.dump
+        #   out/xxx    out/     out/xxx.dump 
+        #
+        my $dir = '';
+        if ( $prefix=~m{/[^/]+$} ) { $dir=$`; }
+        elsif ( $prefix=~m{/([^/]+)/$} ) { $dir = $`.'/'.$1; $prefix = $dir.'/'.$1; }
+        elsif ( $prefix=~m{([^/]+)/?$} ) { $dir=$1; $prefix=$dir.'/'.$1; }
+        if ( $dir ) { `mkdir -p $dir`; }
+    }
+    return $prefix;
+}
+
+sub plot_stats
+{
+    my ($opts) = @_;
+    my $stats = {};
+    for my $file (@{$$opts{files}})
+    {
+        read_stats($stats,$file);
+        plot_site_ndr($opts,$file);
+    }
+    make_dir($$opts{plot});
+    plot_dp($opts,$$stats{dp});
+    plot_af($opts,$$stats{af});
+    plot_ndr($opts,$$stats{af});
+    plot_dp_ndr($opts,$$stats{dp});
+    plot_eq($opts,$$stats{counts_by_gl});
+    print_gs($opts,$$stats{gs});
+}
+
+sub plot
+{
+    my ($file) = @_;
+    system("GDFONTPATH=/usr/share/fonts/truetype/ttf-dejavu/ gnuplot $file");
+}
+
+sub plot_site_ndr
+{
+    my ($opts,$file) = @_;
+    my ($fname,$gp,$start_chr,@counts);
+    my $start_pos = -1;
+    my $count = 0;
+    my $numerator = 0;
+    my $denominator = 0;
+    open(my $fh,'<',$file) or error("$file: $!");
+    while (my $line=<$fh>)
+    {
+        if ( !($line=~/^SD/) ) { next; }
+        my @items = split(/\t/,$line);
+        my $chr = $items[1];
+        my $pos = $items[2];
+        if ( !defined $gp )
+        {
+            $fname = "$$opts{plot}-ndr-$chr-$pos.gp";
+            open($gp,'>',$fname) or error("$fname: $!");
+            print $gp q[
+                set terminal png size 550,400 truecolor font "DejaVuSansMono,9"
+                set output "] . "$$opts{plot}-ndr-$chr-$pos.png" . q["
+                set style line 1 linecolor rgb "#ff4400"
+                set style line 2 linecolor rgb "#0084ff"
+                set style increment user
+                set grid back lc rgb "#dddddd"
+                set xlabel "Alternate allele frequency"
+                set ylabel "Non-reference Discordance Rate"
+                set y2label "Number of genotypes"
+                set y2tics
+                set xtic rotate by -45
+
+                plot '-' with lines lw 1 title "NDR", \
+                '-' axes x1y2 with lines lw 1 title "GTs"
+            ];
+        }
+        if ( $start_pos==-1 )
+        { 
+            $start_pos = $pos; 
+            $start_chr = $chr;
+        }
+        $numerator   += $items[6] + $items[7] + $items[8];
+        $denominator += $items[6] + $items[7] + $items[8] + $items[4] + $items[5];
+        $count       += $denominator;
+        if ( $start_pos+50_000 > $pos && $start_chr eq $chr ) { next; }
+
+        printf $gp "$start_pos\t%.2f\n", $denominator ? $numerator*100.0/$denominator : 0;
+        push @counts, "$start_pos\t$count\n";
+
+        $numerator = 0;
+        $denominator = 0;
+        $count = 0;
+        $start_pos = $pos;
+        $start_chr = $chr;
+    }
+    close($fh);
+
+    # Was the ^SD section found?
+    if ( !@counts ) { return; }
+
+    push @counts, "$start_pos\t$count\n";
+    printf $gp "$start_pos\t%.2f\n", $denominator ? $numerator*100.0/$denominator : 0;
+    print $gp "end\n";
+    print $gp join('',@counts), "end\n";
+    close($gp);
+
+    plot("$fname");
+}
+
+sub plot_dp_ndr
+{
+    my ($opts,$stats) = @_;
+
+    my ($numerator,$denominator);
+    for my $agt (keys %$stats)
+    {
+        if ( $agt eq 'n' or $agt eq 'ndist' ) { next; }
+        for my $bgt (keys %{$$stats{$agt}})
+        {
+            if ( $bgt eq 'n' ) { next; }
+            if ( $agt eq 'RR' && $bgt eq 'RR' ) { next; }
+            for my $dp (keys %{$$stats{$agt}{$bgt}})
+            {
+                if ( $agt ne $bgt )
+                {
+                    $$numerator{$dp} += $$stats{$agt}{$bgt}{$dp};
+                    $$denominator{$dp} += $$stats{$agt}{$bgt}{$dp};
+                }
+                else
+                {
+                    $$denominator{$dp} += $$stats{$agt}{$bgt}{$dp};
+                }
+            }
+        }
+    }
+
+    open(my $fh,'>',"$$opts{plot}-dp-ndr.gp") or error("$$opts{plot}-dp-ndr.gp: $!");
+    if ( exists($$opts{title}) ) { print $fh qq[set title "$$opts{title}"\n]; }
+    print $fh q[
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
+        set output "] . "$$opts{plot}-dp-ndr.png" . q["
+        set style line 1 linecolor rgb "#ff4400"
+        set style line 2 linecolor rgb "#0084ff"
+        set style increment user
+        set grid back lc rgb "#dddddd"
+        set xlabel "Depth"
+        set ylabel "Non-reference Discordance Rate"
+        set y2label "Number of genotypes"
+        set y2tics
+
+        plot '-' with lines lw 1 title "NDR", \
+            '-' axes x1y2 with lines lw 1 title "GTs"
+        ];
+
+    for my $dp (sort {$a<=>$b} keys %$denominator)
+    {
+        printf $fh "%d\t%.2f\n", $dp,$$denominator{$dp} ? $$numerator{$dp}*100.0/$$denominator{$dp} : 0;
+    }
+    print $fh "end\n";
+    for my $dp (sort {$a<=>$b} keys %$denominator)
+    {
+        printf $fh "%d\t%d\n", $dp,$$denominator{$dp};
+    }
+    print $fh "end\n";
+    close($fh);
+
+    plot("$$opts{plot}-dp-ndr.gp");
+}
+
+sub plot_dp
+{
+    my ($opts,$stats) = @_;
+
+    my $out;
+    my @plots;
+    for my $agt (sort keys %$stats)
+    {
+        if ( $agt eq 'n' or $agt eq 'ndist' ) { next; }
+        for my $bgt (sort keys %{$$stats{$agt}})
+        {
+            if ( $bgt eq 'n' ) { next; }
+            if ( $agt eq $bgt ) { next; }
+            for my $dp (sort {$a<=>$b} keys %{$$stats{$agt}{$bgt}})
+            {
+                $out .= $dp . "\t" . ($$stats{n}{$agt}{$bgt} ? $$stats{$agt}{$bgt}{$dp}*100.0/$$stats{n}{$agt}{$bgt} : 0) . "\n";
+            }
+            $out .= "end\n";
+            push @plots, qq["-" using 1:2 with linespoints pt 12 title "$agt -> $bgt"];
+        }
+    }
+
+    open(my $fh,'>',"$$opts{plot}-dp.gp") or error("$$opts{plot}-dp.gp: $!");
+    print $fh q[
+        set terminal png size 600,400 truecolor font "DejaVuSansMono,9"
+        set output "] . "$$opts{plot}-dp.png" . q["
+        set ylabel 'Fraction of GTs [%]'
+        set y2label 'Number of GTs total'
+        set y2tics
+        set ytics nomirror
+        set xlabel 'Depth'
+        set xrange [:20]
+        ];
+    if ( exists($$opts{title}) ) { print $fh qq[set title "$$opts{title}"\n]; }
+    print $fh "plot ", join(',',@plots), qq[, '-' using 1:2 axes x1y2 with lines lt 0 title "GTs total"\n];
+    print $fh $out;
+    for my $dp (sort {$a<=>$b} keys %{$$stats{ndist}})
+    {
+        print $fh "$dp\t$$stats{ndist}{$dp}\n";
+    }
+    print $fh "end\n";
+    close($fh);
+
+    plot("$$opts{plot}-dp.gp");
+}
+
+sub plot_af
+{
+    my ($opts,$stats) = @_;
+
+    open(my $fh,'>',"$$opts{plot}-af.gp") or error("$$opts{plot}-af.gp: $!");
+    if ( exists($$opts{title}) ) { print $fh qq[set title "$$opts{title}"\n]; }
+    print $fh q[
+        set terminal png size 550,400 truecolor font "DejaVuSansMono,9"
+        set output "] . "$$opts{plot}-af.png" . q["
+        set grid back lc rgb "#dddddd"
+        set xlabel "Non-reference allele frequency"
+        set ylabel "Concordance"
+        set y2label "Number of genotypes"
+        set yrange [0.0:1.0]
+        set y2tics
+        set key center
+
+        plot '-' axes x1y2 with lines lw 1 lc rgb "red" notitle, \
+             '-' axes x1y2 with lines lw 1 lc rgb "green" notitle, \
+             '-' axes x1y2 with lines lw 1 lc rgb "blue" notitle, \
+             '-' with points pt 20 lc rgb "red" title "HomRef", \
+             '-' with points pt 20 lc rgb "green" title "Het", \
+             '-' with points pt 20 lc rgb "blue" title "HomAlt"
+        ];
+
+    for my $type (qw(RR RA AA))
+    {
+        for my $af (sort {$a<=>$b} keys %{$$stats{$type}})
+        {
+            print $fh "$af\t" . ($$stats{$type}{$af}{matches}+$$stats{$type}{$af}{mismatches}) . "\n";
+        }
+        print $fh "end\n";
+    }
+    for my $type (qw(RR RA AA))
+    {
+        for my $af (sort {$a<=>$b} keys %{$$stats{$type}})
+        {
+            my $n = $$stats{$type}{$af}{matches}+$$stats{$type}{$af}{mismatches};
+            print $fh "$af\t" . ($n ? 1-$$stats{$type}{$af}{mismatches}/$n : -1) . "\n";
+        }
+        print $fh "end\n";
+    }
+    close($fh);
+
+    plot("$$opts{plot}-af.gp");
+}
+
+sub plot_ndr
+{
+    my ($opts,$stats) = @_;
+
+    open(my $fh,'>',"$$opts{plot}-ndr.gp") or error("$$opts{plot}-ndr.gp: $!");
+    if ( exists($$opts{title}) ) { print $fh qq[set title "$$opts{title}"\n]; }
+    print $fh q[
+        set terminal png size 550,400 truecolor font "DejaVuSansMono,9"
+        set output "] . "$$opts{plot}-ndr.png" . q["
+        set style line 1 linecolor rgb "#ff4400"
+        set style line 2 linecolor rgb "#0084ff"
+        set style increment user
+        set grid back lc rgb "#dddddd"
+        set xlabel "Alternate allele frequency"
+        set ylabel "Non-reference Discordance Rate"
+        set y2label "Number of genotypes"
+        set xrange [0.0:1.0]
+        set y2tics
+
+        plot '-' with lines lw 1 title "NDR", \
+             '-' axes x1y2 with lines lw 1 title "GTs"
+        ];
+
+    my $afs;
+    for my $type (qw(RA AA))
+    {
+        for my $af (keys %{$$stats{$type}})
+        {
+            $$afs{$af}{m} += $$stats{$type}{$af}{matches};
+            $$afs{$af}{mi} += $$stats{$type}{$af}{mismatches};
+        }
+    }
+    for my $type (qw(RR))
+    {
+        for my $af (keys %{$$stats{$type}})
+        {
+            $$afs{$af}{mi} += $$stats{$type}{$af}{mismatches};
+        }
+    }
+
+    my @afs = sort { $a<=>$b } keys %$afs;
+    my $iafs = 0;
+    my $bin_size = 0.02;
+    my @dp;
+    for (my $i=0; $i<=1/$bin_size; $i++)
+    {
+        my $from = $i*$bin_size;
+        my $to   = ($i+1)*$bin_size;
+        my ($m,$mi,$af) = (0,0,0);
+        while ( $iafs<@afs && $afs[$iafs]>=$from && $afs[$iafs]<$to ) 
+        {
+            $af = $afs[$iafs];
+            $m  += $$afs{$af}{m};
+            $mi += $$afs{$af}{mi};
+            $iafs++;
+        }
+        if ( !($m+$mi) ) { next; }
+        printf $fh "$af\t%.2f\n", $m+$mi ? $mi*100.0/($m+$mi) : 0;
+        push @dp, sprintf "$af\t%d",$m+$mi;
+    }
+    print $fh "end\n";
+    print $fh join("\n",@dp), "\nend\n";
+    close($fh);
+
+    plot("$$opts{plot}-ndr.gp");
+}
+
+sub plot_eq
+{
+    my ($opts,$stats) = @_;
+
+    if ( !scalar keys %$stats ) { return; }
+
+    open(my $fh,'>',"$$opts{plot}-eq.gp") or error("$$opts{plot}-eq.gp: $!");
+    if ( exists($$opts{title}) ) { print $fh qq[set title "$$opts{title}"\n]; }
+    print $fh q[
+        set terminal png size 550,400 truecolor font "DejaVuSansMono,9"
+        set output "] . "$$opts{plot}-eq.png" . q["
+        set style line 1 linecolor rgb "#ff4400"
+        set style line 2 linecolor rgb "#0084ff"
+        set style increment user
+        set grid back lc rgb "#dddddd"
+        set xlabel "GL"
+        set ylabel "Number of matches (log)"
+        set y2label "Number of mismatches (log)"
+        set y2tics
+        set ytics nomirror
+        set log y
+        set log y2
+
+        plot '-' with lines lw 1 title "Matches", \
+             '-' axes x1y2 with lines lw 1 title "Mismatches"
+        ];
+
+    for my $gl (sort {$a<=>$b} keys %$stats)
+    {
+        print $fh "$gl\t$$stats{$gl}{match}\n";
+    }
+    print $fh "end\n";
+    for my $gl (sort {$a<=>$b} keys %$stats)
+    {
+        print $fh "$gl\t$$stats{$gl}{mismatch}\n";
+    }
+    print $fh "end\n";
+    close($fh);
+
+    plot("$$opts{plot}-eq.gp");
+}
+
+sub do_region_stats
+{
+    my ($opts,$vcfs) = @_;
+
+    my $refseq;
+    if ( $$opts{refseq} ) { $refseq = FaSlice->new(file=>$$opts{refseq}, size=>1_000_000); }
+
+    my $nvcfs = scalar @$vcfs;
+    my $debug = $$opts{debug} ? $$opts{debug} : 0;
+    my $match = $$opts{match};
+    my $win   = $$opts{win} ? $$opts{win} : 0;
+
+    while (1)
+    {
+        my $grp = read_next_group($opts,$vcfs,$win);
+        if ( !$grp || !scalar @$grp ) { last }
+
+        if ( $debug>1 )
+        {
+            print "Group:\n";
+            for my $rec (@$grp) { print "$$rec{chr}\t$$rec{pos}\t$$rec{vcf}{file}\n"; }
+            print "\n";
+        }
+
+        my %files;
+        for my $rec (@$grp)
+        {
+            $files{$$rec{vcf}{file}} = 1;
+        }
+        my $key = join(q['],sort(keys %files));
+        $$match{$key}++;
+
+        my $npresent = scalar keys %files;
+        if ( $npresent == $nvcfs ) 
+        { 
+            ref_alt_stats($opts,$grp); 
+        }
+
+        if ( $npresent>1 && defined $refseq ) 
+        { 
+            cmp_sequence($opts,$grp,$refseq);
+        }
+
+        if ( $$opts{cmp_genotypes} )
+        {
+            # Check that in the group there is one record for each file
+            if ( $npresent==$nvcfs && scalar @$grp==$nvcfs )
+            {
+                cmp_genotypes($opts,$grp);
+            }
+        }
+    }
+}
+
+sub cmp_sequence
+{
+    my ($opts,$grp,$fa_refseq) = @_;
+
+    # Detailed comparison will be performed only if there are indels or complex
+    # substitutions, SNPs are interesting only in their presence. There can be
+    # more events from the same file present simultaneously and at multiple
+    # positions. They all are treated as separate variants and if any of them
+    # yields a haplotype present in all files, match is reported.
+    # Note that the original version of the code expected all alternate
+    # variants to be present on a single VCF line and was able to compare
+    # consecutive non-overlapping events as one sequence. However, because the
+    # the major producer of indel calls (Dindel) does report one variant per
+    # line, this idea was abandoned.
+
+    # Check if there are any interesting events.
+    my %has_indels;
+    my %events_per_file;
+    my $vcf = $$grp[0]{vcf};
+    for (my $igrp=0; $igrp<@$grp; $igrp++)
+    {
+        my $rec = $$grp[$igrp];
+        my $ifile = $$rec{vcf}{vcf_compare_ID};
+
+        my $ref_len = length($$rec{ref});
+        my @alts = split(/,/,$$rec{alt});
+        for my $alt (@alts)
+        {
+            if ( $alt eq '.' ) { next; }
+            if ( $alt=~/^</ ) { next; }
+            my $alt_len = length($alt);
+            push @{$events_per_file{$ifile}}, { pos=>$$rec{pos}, alt=>$alt, ref_len=>$ref_len };
+
+            # Do complex checking of event type only if it is still not certain if this is waste of time or not
+            if ( exists($has_indels{$ifile}) ) { next; }
+
+            if ( $ref_len!=$alt_len ) { $has_indels{$ifile} = $$rec{vcf}{file}; }
+            elsif ( $ref_len>1 )
+            {
+                my ($type,$len,$ht) = $vcf->event_type($$rec{ref},$alt);
+                if ( $type eq 'o' ) { $has_indels{$ifile} = $$rec{vcf}{file}; }
+            }
+        }
+    }
+
+    # Return if there is nothing interesting
+    if ( scalar keys %has_indels < 2 ) { return; }
+
+    for my $ifile (keys %events_per_file)
+    {
+        if ( !exists($has_indels{$ifile}) ) { delete($events_per_file{$ifile}); }
+    }
+
+    # Cache the reference sequence chunk
+    my $ref_from  = $$grp[0]{pos} - $$opts{win};
+    my $ref_to    = $$grp[-1]{pos} + $$opts{win};
+    my $refseq    = $fa_refseq->get_slice($$grp[0]{chr},$ref_from,$ref_to);
+
+    # For each file get all possible sequences
+    for my $events (values %events_per_file)
+    {
+        for my $variant (@$events)
+        {
+            my $pos = $$variant{pos};
+            my $len = $pos - $ref_from;
+            my $seq = $len>0 ? substr($refseq,0,$len) : '';
+            $seq .= $$variant{alt};
+
+            $pos += $$variant{ref_len};
+            if ( $pos<=$ref_to )
+            { 
+                $seq .= substr($refseq,$pos-$ref_from);
+            }
+
+            $$variant{seq} = $seq;
+            $$variant{length} = length($seq);
+        }
+    }
+
+    # Now compare the variants: is there a sequence shared across all files?
+    my $match = 1;
+    my @keys  = keys %events_per_file;
+    for (my $ikey=0; $ikey<@keys; $ikey++)
+    {
+        my $ivars = $events_per_file{$ikey};
+        for (my $jkey=0; $jkey<$ikey; $jkey++)
+        {
+            my $jvars = $events_per_file{$jkey};
+            my $found = 0;
+            for my $ivar (@$ivars)
+            {
+                for my $jvar (@$jvars)
+                {
+                    if ( $$ivar{length} != $$jvar{length} ) { next; }
+                    if ( $$ivar{seq} ne $$jvar{seq} ) { next; }
+                    $found=1;
+                    last;
+                }
+            }
+            if ( !$found ) { $match=0; last; }
+        }
+        if ( !$match ) { last; }
+    }
+    
+    my $key = join(q['],sort(values %has_indels));
+    if ( $match )
+    {
+        $$opts{indels}{$key}{match}++;
+    }
+    else
+    {
+        $$opts{indels}{$key}{mismatch}++;
+    }
+}
+
+sub ref_alt_stats
+{
+    my ($opts,$grp) = @_;
+
+    my $ref = $$grp[0]{ref};
+    my $alt = join(',',sort split(/,/,$$grp[0]{alt}));
+
+    my $alt_mismatch;
+    for (my $i=1; $i<@$grp; $i++)
+    {
+        my $rec = $$grp[$i];
+
+        if ( $ref ne $$rec{ref} ) 
+        { 
+            $$opts{ref_mismatch}++;
+            if ( $$opts{debug} ) { print "RM\t$$grp[0]{chr}\t$$grp[0]{pos}\t$$grp[0]{ref}\t$$rec{ref}\n"; }
+            return; 
+        }
+
+        my $tmp = join(',',sort split(/,/,$$rec{alt}));
+        if ( $alt ne $tmp ) 
+        { 
+            $alt_mismatch = $tmp;
+        }
+    }
+    if ( $alt ne '.' )
+    {
+        if ( defined $alt_mismatch ) 
+        { 
+            $$opts{alt_mismatch}++; 
+            if ( $$opts{debug} ) { print "AM\t$$grp[0]{chr}\t$$grp[0]{pos}\t$alt\t$alt_mismatch\n"; }
+        }
+        else { $$opts{alt_match}++; }
+    }
+    $$opts{ref_match}++;
+}
+
+
+sub snp_type
+{
+    my ($als,$ref) = @_;
+
+    if ( @$als==1 ) 
+    { 
+        return $$als[0] eq $ref ? 'hom_RR_' : 'hom_AA_';
+    }
+
+    # Determine SNP type: hom(RR),het(RA),hom(AA) or het(AA)
+    if ( $$als[0] eq $$als[1] )
+    {
+        if ( $$als[0] eq $ref ) { return 'hom_RR_'; }
+        else { return 'hom_AA_'; }
+    }
+    else
+    {
+        if ( $$als[0] eq $ref or $$als[1] eq $ref ) { return 'het_RA_'; }
+        else { return 'het_AA_'; }
+    }
+}
+
+sub cmp_genotypes
+{
+    my ($opts,$grp) = @_;
+    my $nrecs = @$grp;
+    my $hapls = $$opts{hapls};
+
+    # Break the VCF lines into hashes (required by parse_haplotype)
+    for my $grp_rec (@$grp)
+    {
+        $$grp_rec{rec} = $$grp_rec{vcf}->next_data_hash($$grp_rec{line});
+        if ( $$opts{ignore_indels} && exists($$grp_rec{rec}{INFO}{INDEL}) ) { return; }
+        if ( exists($$grp_rec{vcf}{_col_mapping}) )
+        {
+            my %new_cols;
+            while (my ($name_ori,$name_new) = each %{$$grp_rec{vcf}{_col_mapping}})
+            {
+                $new_cols{$name_new} = $$grp_rec{rec}{gtypes}{$name_ori};
+                delete($$grp_rec{rec}{gtypes}{$name_ori});
+            }
+            while (my ($name,$hash) = each %new_cols)
+            {
+                $$grp_rec{rec}{gtypes}{$name} = $hash;
+            }
+        }
+    }
+    if ( $$grp[0]{vcf}{vcf_compare_ID} != 0 ) { error("FIXME: different order than expected: $$grp[0]{vcf}{vcf_compare_ID}\n"); }
+    my $ref = $$grp[0]{rec}{REF};
+
+    my %gtype_matches = ();
+    my %gtype_mismatches = ();
+
+    my $min_dp;
+    my $ndp3 = 0;
+    for my $id (keys %{$$grp[0]{rec}{gtypes}})
+    {
+        my (@sorted_als1,$nploid,$type,$max_gl);
+
+        my ($als1,$seps1,$is_phased1,$is_empty1) = $$grp[0]{vcf}->parse_haplotype($$grp[0]{rec},$id);
+        if ( !$is_empty1 ) 
+        {
+            @sorted_als1 = sort @$als1;
+            $nploid = scalar @sorted_als1;
+            $type = snp_type($als1,$ref);
+        }
+
+        if ( exists($$opts{high_confidence_gls}) )
+        {
+            my @gls = split(/,/,$$grp[1]{rec}{gtypes}{$id}{GL});
+            if ( @gls!=3 or $gls[0] eq '.' ) { next; }
+            @gls = sort {$b<=>$a} @gls;
+            if ( abs($gls[0]-$gls[1])<$$opts{high_confidence_gls} ) { next; }
+        }
+        if ( exists($$opts{err_by_gl}) && exists($$grp[0]{rec}{gtypes}{$id}{GL}) )
+        {
+            for my $gl (split(/,/,$$grp[0]{rec}{gtypes}{$id}{GL}))
+            {
+                if ( !defined $max_gl or $gl>$max_gl ) { $max_gl = $gl; }
+            }
+        }
+
+        # There may be multiple files entering the comparison. Report match only if all are present and all match. 
+        #   Report mismatch if all are present and they do not match. Otherwise report lost/gained event.
+        my $phase_match  = 1;
+        my $phase_mismatch = 0;
+        my $gtype_match  = 1;
+        my $gtype_lost   = 0;
+        my $gtype_gained = 0;
+        my $phase_lost   = 0;
+        my $phase_gained = 0;
+        my $type2;
+        for (my $i=1; $i<$nrecs; $i++)
+        {
+            my ($als2,$seps2,$is_phased2,$is_empty2) = $$grp[$i]{vcf}->parse_haplotype($$grp[$i]{rec},$id);
+            if ( $is_empty1 ) 
+            { 
+                $gtype_match = 0;
+                if ( !$is_empty2 ) 
+                { 
+                    $gtype_gained = 1;
+                    $type = snp_type($als2,$ref);
+                }
+                if ( !$is_phased1 && $is_phased2 ) { $phase_gained = 1; }
+                last; 
+            }
+            elsif ( $is_empty2 ) 
+            { 
+                $gtype_match = 0;
+                $gtype_lost = 1;
+                last; 
+            }
+            if ( $is_phased1 ) 
+            { 
+                if ( !$is_phased2 ) 
+                { 
+                    $phase_lost = 1; 
+                    $phase_match = 0;
+                }
+            }
+            elsif ( $is_phased2 )
+            {
+                $phase_gained = 1;
+                $phase_match = 0;
+            }
+            else { $phase_match = 0; }
+            
+            # Consider different number of alleles as mismatch (C vs C/C) 
+            if ( scalar @$als1 != scalar @$als2 ) 
+            { 
+                $gtype_match = 0; 
+                if ( $$opts{debug} ) { $$opts{mismatch_types}{$type}{'Allele_Count'}++ }
+                last; 
+            }
+
+            if ( exists($$opts{err_by_gl}) && exists($$grp[$i]{rec}{gtypes}{$id}{GL}) )
+            {
+                for my $gl (split(/,/,$$grp[$i]{rec}{gtypes}{$id}{GL}))
+                {
+                    if ( !defined $max_gl or $gl>$max_gl ) { $max_gl = $gl; }
+                }
+            }
+
+            my @sorted_als2 = sort @$als2;
+            for (my $ial=0; $ial<$nploid; $ial++)
+            {
+                if ( $sorted_als1[$ial] ne $sorted_als2[$ial] ) 
+                {
+                    $gtype_match  = 0;
+                    if ( $$opts{debug} )
+                    {
+                        my $type2 = snp_type($als2,$ref);
+                        $$opts{mismatch_types}{$type}{$type2}++;
+                    }
+                    last;
+                }
+            }
+
+            if ( !$gtype_match ) 
+            { 
+                if ( !defined $type2 && !$is_empty2 ) 
+                { 
+                    $type2 = snp_type($als2,$ref); 
+                }
+                last; 
+            }
+
+            # They match, check also if their phase agrees
+            if ( $phase_match && $is_phased1 && $is_phased2 )
+            {
+                for (my $ial=0; $ial<$nploid; $ial++)
+                {
+                    if ( $$als1[$ial] ne $$als2[$ial] ) { $phase_mismatch=1; last; }
+                }
+            }
+        }
+        if ( $gtype_gained ) 
+        { 
+            $$hapls{$id}{$type.'gtype_gained'}++; 
+            if ( $phase_gained ) { $$hapls{$id}{phased_gtype_gained}++ }
+            next; 
+        }
+        if ( $gtype_lost ) { $$hapls{$id}{$type.'gtype_lost'}++; next; }
+        if ( $phase_mismatch ) { $$hapls{$id}{$type.'phase_mismatch'}++; }
+
+        if ( $phase_gained ) { $$hapls{$id}{phase_gained}++ }
+        elsif ( $phase_lost ) { $$hapls{$id}{$type.'phase_lost'}++ }
+
+        my $dp = exists($$grp[1]{rec}{gtypes}{$id}{DP}) ? $$grp[1]{rec}{gtypes}{$id}{DP} : -1;
+        if ( $gtype_match ) 
+        { 
+            $$hapls{$id}{$type.'gtype_match'}++;
+            if ( $phase_match ) { $$hapls{$id}{$type.'phase_match'}++ }
+            $gtype_matches{$type}++;
+            $$opts{counts_by_dp}{$dp}{$type.'-'.$type}++;
+            if ( defined $max_gl ) 
+            { 
+                my $gl = sprintf "%.2f", $max_gl;
+                $$opts{counts_by_gl}{$gl}{match}++;
+            }
+        }
+        elsif ( defined $type ) 
+        { 
+            $$hapls{$id}{$type.'gtype_mismatch'}++;
+            $gtype_mismatches{$type}++;
+            $$opts{counts_by_dp}{$dp}{$type.'-'.$type2}++;
+            if ( defined $max_gl ) 
+            { 
+                my $gl = sprintf "%.2f", $max_gl;
+                $$opts{counts_by_gl}{$gl}{mismatch}++;
+            }
+        }
+    }
+    $$opts{hapls_ncmp}++;
+
+    my %infoGroup;
+    for my $infoTag ( @{$$opts{INFOgroup}} ) 
+    {
+        if ( exists($$grp[1]{rec}{INFO}{$infoTag}) )
+        {
+            if( exists($$opts{INFOgroupIdx}{$infoTag}) ) 
+            {
+                my @arr = split(/,/,$$grp[1]{rec}{INFO}{$infoTag});
+                $infoGroup{$infoTag} = sprintf "%.2f", $arr[$$opts{INFOgroupIdx}{$infoTag}];
+            } else {
+                $infoGroup{$infoTag} = sprintf "%.2f", $$grp[1]{rec}{INFO}{$infoTag}; 
+            }
+        }
+    }
+
+    # Store the number of matching types by AC
+    my $af;
+    if ( $$opts{INFO_AF1_af} && exists($$grp[1]{rec}{INFO}{AF1}) )
+    {
+        $af = sprintf "%.2f", $$grp[1]{rec}{INFO}{AF1};
+    }
+    elsif ( !$$opts{all_samples_af} )
+    {
+        my $ac = 0;
+        my $an = 0;
+        if ( exists($gtype_matches{hom_AA_}) ) 
+        {
+            $ac += 2*$gtype_matches{hom_AA_}; 
+            $an += 2*$gtype_matches{hom_AA_}; 
+        }
+        if ( exists($gtype_mismatches{hom_AA_}) ) 
+        { 
+            $ac += 2*$gtype_mismatches{hom_AA_}; 
+            $an += 2*$gtype_mismatches{hom_AA_}; 
+        }
+        if ( exists($gtype_matches{het_RA_}) ) 
+        { 
+            $ac += $gtype_matches{het_RA_}; 
+            $an += 2*$gtype_matches{het_RA_}; 
+        }
+        if ( exists($gtype_mismatches{het_RA_}) ) 
+        { 
+            $ac += $gtype_mismatches{het_RA_}; 
+            $an += 2*$gtype_mismatches{het_RA_}; 
+        }
+        if ( exists($gtype_matches{hom_RR_}) ) { $an += 2*$gtype_matches{hom_RR_}; }
+        if ( exists($gtype_mismatches{hom_RR_}) ) { $an += 2*$gtype_mismatches{hom_RR_}; }
+        $af = sprintf "%.2f", $an>0 ? $ac/$an : 0;
+    }
+    else
+    {
+        my ($an,$ac) = $$grp[0]{vcf}->calc_an_ac($$grp[0]{rec}{gtypes});
+        $af = sprintf "%.2f", $an>0 ? $ac/$an : 0;
+    }
+
+    for my $type (keys %gtype_matches)
+    {
+        for my $infoTag ( @{$$opts{INFOgroup}} ) 
+        {
+            $$opts{counts_by_INFO}{$infoTag}{$infoGroup{$infoTag}}{$type}{matches} += $gtype_matches{$type};
+        }
+        $$opts{counts_by_af}{$af}{$type}{matches} += $gtype_matches{$type};
+        $$opts{gtypes_cmp_total} += $gtype_matches{$type};
+    }
+    for my $type (keys %gtype_mismatches)
+    {
+        for my $infoTag ( @{$$opts{INFOgroup}} ) 
+        {
+            $$opts{counts_by_INFO}{$infoTag}{$infoGroup{$infoTag}}{$type}{mismatches} += $gtype_mismatches{$type};
+        }
+        $$opts{counts_by_af}{$af}{$type}{mismatches} += $gtype_mismatches{$type};
+        $$opts{gtypes_cmp_total} += $gtype_mismatches{$type};
+    }
+
+    if ( $$opts{debug} )
+    {
+        my $hom_rr_mm = $gtype_mismatches{hom_RR_} ? $gtype_mismatches{hom_RR_} : 0;
+        my $het_ra_mm = $gtype_mismatches{het_RA_} ? $gtype_mismatches{het_RA_} : 0;
+        my $hom_aa_mm = $gtype_mismatches{hom_AA_} ? $gtype_mismatches{hom_AA_} : 0;
+        my $hom_rr_m  = $gtype_matches{hom_RR_} ? $gtype_matches{hom_RR_} : 0;
+        my $het_ra_m  = $gtype_matches{het_RA_} ? $gtype_matches{het_RA_} : 0;
+        my $hom_aa_m  = $gtype_matches{hom_AA_} ? $gtype_matches{hom_AA_} : 0;
+        my $denom = $het_ra_m+$hom_aa_m+$hom_rr_mm+$het_ra_mm+$hom_aa_mm;
+        my $ndr   = sprintf "%.2f", $denom ? ($hom_rr_mm+$het_ra_mm+$hom_aa_mm)*100.0/$denom : 0;
+        print "SD\t$$grp[0]{rec}{CHROM}\t$$grp[0]{rec}{POS}\t$hom_rr_m\t$het_ra_m\t$hom_aa_m\t$hom_rr_mm\t$het_ra_mm\t$hom_aa_mm\t$ndr\n";
+    }
+}
+
+
+sub read_next_group
+{
+    my ($opts,$vcfs,$win) = @_;
+
+    my @grp;
+    my $prev_vcf;
+    my $start;
+
+    while (1)
+    {
+        my $min_vcf = get_min_position($opts,$vcfs);
+        if ( !$min_vcf ) { last; }
+        if ( $prev_vcf && $prev_vcf eq $$min_vcf{buf}[0] ) { last; }
+        $prev_vcf = $$min_vcf{buf}[0];
+
+        if ( !$start or $start+$win >= $$min_vcf{buf}[0]{pos} )
+        {
+            my $rec = shift(@{$$min_vcf{buf}});
+            push @grp,$rec;
+
+            $start = $$rec{pos};
+            next; 
+        }
+    }
+    return \@grp;
+}
+
+sub get_min_position
+{
+    my ($opts,$vcfs) = @_;
+
+    my ($min_pos,$min_vcf);
+    for my $vcf (@$vcfs)
+    {
+        # Check if there is a line in the buffer, if not, read. If still empty, the file reached eof
+        if ( !$$vcf{buf} or !scalar @{$$vcf{buf}} ) { read_line($opts,$vcf); }
+        if ( !$$vcf{buf} or !scalar @{$$vcf{buf}} ) { next; }
+
+        my $line = $$vcf{buf}[0];
+
+        # Designate this position as the minimum of all the files if:
+        # .. is this the first file?
+        if ( !$min_pos )
+        {
+            $min_pos = $$line{pos};
+            $min_vcf = $vcf;
+            next;
+        }
+
+        # .. has this file lower position?
+        if ( $min_pos>$$line{pos} )
+        {
+            $min_pos = $$line{pos};
+            $min_vcf = $vcf;
+            next;
+        }
+    }
+    return $min_vcf;
+}
+
+sub read_line
+{
+    my ($opts,$vcf) = @_;
+
+    if ( $$vcf{eof} ) { return; }
+
+    my @items;
+    my $line;
+    while ( !defined $line )
+    {
+        $line = $vcf->next_line();
+        if ( !$line )
+        {
+            $$vcf{eof} = 1;
+            return;
+        }
+
+        @items = split(/\t/,$line);
+        if ( $$opts{apply_filters} )
+        {
+            if ( $items[6] ne 'PASS' && $items[6] ne '.' )
+            {
+                $line = undef;
+                next;
+            }
+        }
+    }
+
+    $$vcf{nread}++;
+
+    my $chr = $items[0];
+    my $pos = $items[1];
+    my $ref = uc($items[3]);
+    my $alt = uc($items[4]);
+    if ( $$vcf{buf} && @{$$vcf{buf}} )
+    {
+        my $prev = $$vcf{buf}[-1];
+        if ( $$prev{pos} == $pos ) { warn("Position $chr:$pos appeared twice in $$vcf{file}\n"); }
+    }
+
+    push @{$$vcf{buf}}, { chr=>$chr, pos=>$pos, ref=>$ref, alt=>$alt, line=>$line, vcf=>$vcf };
+    return;
+}
+

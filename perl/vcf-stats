@@ -1,0 +1,160 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use VcfStats;
+
+my $opts = parse_params();
+vcf_stats($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "Usage: vcf-stats [OPTIONS] file.vcf.gz\n",
+        "Options:\n",
+        "   -d, --dump <file>                           Take an existing dump file and recreate the files (works with -p)\n",
+        "   -f, --filters <filter1,filter2>             List of filters such as column/field (any value), column/field=bin:max (cluster in bins),column/field=value (exact value)\n",
+        "   -p, --prefix <dir/string>                   Prefix of output files. If slashes are present, directories will be created.\n",
+        "   -s, --samples <list>                        Process only the listed samples, - for none. Excluding unwanted samples may increase performance considerably.\n",
+        "   -h, -?, --help                              This help message.\n",
+        "\n",
+        "Examples:\n",
+        "   # Calculate stats separately for the filter field, quality and non-indels\n",
+        "   vcf-stats file.vcf.gz -f FILTER,QUAL=10:200,INFO/INDEL=False -p out/\n",
+        "\n",
+        "   # Calculate stats for all samples\n",
+        "   vcf-stats file.vcf.gz -f FORMAT/DP=10:200 -p out/\n",
+        "\n",
+        "   # Calculate stats only for the sample NA00001\n",
+        "   vcf-stats file.vcf.gz -f SAMPLE/NA00001/DP=1:200 -p out/\n",
+        "\n",
+        "   vcf-stats file.vcf.gz > perl.dump\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = { filters=>{}, filter_param=>'' };
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-d' || $arg eq '--dump'  ) { $$opts{dump}=shift(@ARGV); next; }
+        if ( $arg eq '-f' || $arg eq '--filters'  ) { $$opts{filter_param}=shift(@ARGV); next; }
+        if ( $arg eq '-p' || $arg eq '--prefix'  ) { $$opts{prefix}=shift(@ARGV); next; }
+        if ( $arg eq '-s' || $arg eq '--samples'  ) 
+        { 
+            my $samples = shift(@ARGV);
+            $$opts{samples} = [ split(/,/,$samples) ];
+            next;
+        }
+        if ( -e $arg ) { $$opts{file} = $arg; next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter or nonexistent file: \"$arg\". Run -h for help.\n");
+    }
+    if ( exists($$opts{dump}) && !exists($$opts{prefix}) ) { error("Expected -p option with -d.\n"); }
+    return $opts;
+}
+
+
+sub init_filters
+{
+    my ($opts,$vcf) = @_;
+
+    for my $filter (split(/,/,$$opts{filter_param}))
+    {
+        my ($key,$value) = split(/=/,$filter);
+
+        my $rec = { value=>$value, exact=>0, any=>0, bin=>0, is_flag=>0 };
+        if ( $key=~m{^INFO/} )
+        {
+            my $tag = $';
+            $$rec{tag} = $tag;
+            if ( exists($$vcf{header}{'INFO'}) && exists($$vcf{header}{'INFO'}{$tag}) && $$vcf{header}{'INFO'}{$tag}{Type} eq 'Flag' )
+            {
+                $$rec{is_flag} = 1;
+                $$rec{value} = $value eq 'False' ? 0 : 1;
+                $key = "INFO/$tag=". ($$rec{value} ? 'True':'False');
+            }
+        }
+        elsif ( $key eq 'INFO' )
+        {
+            # All INFO flags should be counted
+            for my $tag (keys %{$$vcf{header}{'INFO'}})
+            {
+                if ( $$vcf{header}{'INFO'}{$tag}{Type} ne 'Flag' ) { next; }
+                $$opts{filters}{"INFO/$tag=True"} = { %$rec, is_flag=>1, value=>1, tag=>$tag };
+            }
+            next;
+        }
+
+        if ( ! defined $value )
+        {
+            $$rec{any} = 1;
+        }
+        elsif ( $value=~/^(.+):(.+)$/ ) 
+        {
+            $$rec{bin}      = 1;
+            $$rec{bin_size} = $1;
+            $$rec{max}      = $2;
+        }
+        else
+        {
+            $$rec{exact} = 1;
+        }
+        $$opts{filters}{$key} = $rec;
+    }
+}
+
+
+sub vcf_stats
+{
+    my ($opts) = @_;
+
+    if ( exists($$opts{dump}) )
+    {
+        # Use existing dump to recreate the files
+        my $vcf = VcfStats->new(file=>'/dev/null');
+        $$vcf{stats} = do $$opts{dump};
+        $vcf->save_stats($$opts{prefix});
+        return;
+    }
+
+    # Open the VCF file
+    my $vcf = $$opts{file} ? VcfStats->new(file=>$$opts{file}) : VcfStats->new(fh=>\*STDIN);
+    $vcf->parse_header();
+    init_filters($opts,$vcf);
+
+    # Include only requested samples
+    if ( exists $$opts{samples} )
+    {   
+        my @include = ();
+        if ( scalar @{$$opts{samples}}>1 or $$opts{samples}[0] ne '-' ) 
+        { 
+            for my $sample (@{$$opts{samples}}) { push @include,$sample; }
+        }
+        $vcf->set_samples(include=>\@include); 
+    }
+
+    while (my $rec=$vcf->next_data_hash())
+    {
+       $vcf->collect_stats($rec,$$opts{filters});
+    }
+
+    $vcf->save_stats($$opts{prefix});
+}
+
+
+

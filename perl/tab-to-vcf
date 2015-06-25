@@ -1,0 +1,92 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+use FaSlice;
+
+my $opts = parse_params();
+tab_to_vcf();
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg ) { confess @msg; }
+    die
+        "Usage: tab-to-vcf [OPTIONS]\n",
+        "Options:\n",
+        "   -i, --id <string>               The column ID.\n",
+        "   -r, --ref <fasta-file>          The reference sequence (optional).\n",
+        "   -h, -?, --help                  This help message.\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = {};
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-i' || $arg eq '--id' ) { $$opts{id} = shift(@ARGV); next }
+        if ( $arg eq '-r' || $arg eq '--ref' ) { $$opts{refseq} = shift(@ARGV); next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{id}) ) { error("Missing the -i option.\n") }
+    return $opts;
+}
+
+
+sub tab_to_vcf
+{
+    my ($data,$prefix) = @_;
+
+    my $refseq = $$opts{refseq} ? FaSlice->new(file=>$$opts{refseq},size=>1_000_000) : undef;
+
+    my $id = $$opts{id};
+
+    my $vcf_out = Vcf->new();
+    $vcf_out->add_columns($id);
+    $vcf_out->add_header_line({key=>'FORMAT',ID=>'GT',Number=>'1',Type=>'String',Description=>"Genotype"});
+    print $vcf_out->format_header();
+
+    while (my $line=<STDIN>)
+    {
+        if ( $line=~/^#/ ) { next; }
+
+        # 11      86881024        CT
+        my @items = split(/\t/,$line);
+        if ( $items[2] eq '*' ) { next; }
+
+        my $chr = $items[0];
+        my $pos = $items[1];
+        my $snp = $items[2];
+
+        if ( !($pos=~/^\d+$/) ) { error("Could not parse the line: $line"); }
+        if ( !($snp=~/^([ACGT])([ACGT])$/) ) { error("Could not parse the line: $line"); }
+        $snp = "$1/$2";
+
+        my %out;
+        $out{CHROM}  = $chr;
+        $out{POS}    = $pos;
+        $out{ID}     = '.';
+        $out{ALT}    = [];
+        $out{REF}    = $refseq->get_base($chr,$pos);
+        $out{QUAL}   = '.';
+        $out{FILTER} = ['.'];
+        $out{FORMAT} = ['GT'];
+        $out{gtypes}{$id}{GT} = $snp;
+
+        $vcf_out->format_genotype_strings(\%out);
+        print $vcf_out->format_line(\%out);
+    }
+}
+

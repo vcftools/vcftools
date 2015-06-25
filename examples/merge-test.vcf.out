@@ -1,0 +1,29 @@
+##fileformat=VCFv4.2
+##FILTER=<ID=q10,Description="Quality below 10">
+##FORMAT=<ID=GL,Number=G,Type=Float,Description="Genotype Likelihood">
+##FILTER=<ID=q20,Description="Mapping quality below 20">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Total Depth">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+##INFO=<ID=SF,Number=.,Type=String,Description="Source File (index to sourceFiles, f when filtered)">
+##INFO=<ID=AC,Number=.,Type=Integer,Description="Allele count in genotypes">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	A	B	C
+1	3062915	.	GTTT	G,GT	856.67	q20;q10	AC=2,1;AN=6;DP4=3,6,9,12;DP=59;SF=0f,1f,2	GT:GL:DP:GQ	0/1:-20,-5,-20,.,.,.:35:409	0/2:-10,.,.,0,.,-10:14:376	0/1:.:10:149
+1	3106154	.	CAAAA	CA,C	912.67	PASS	AC=3,1;AN=6;DP=56;SF=0,1,2	GT:GL:DP:GQ	0/1:.:32:245	0/2:-10,.,.,0,.,-10:15:277	1/1:.:9:25
+1	3157410	.	GA	G	363.00	q10	AC=4;AN=6;DP=42;SF=0f,1,2	GT:DP:GQ	1/1:21:21	0/1:11:49	0/1:10:52
+1	3162006	.	GAA	G	745.67	PASS	AC=3;AN=6;DP=58;SF=0,1,2	GT:DP:GQ	0/1:22:212	0/1:19:589	0/1:17:163
+1	3177144	.	GT	G	466.00	PASS	AC=3;AN=6;DP=68;SF=0,1,2	GT:DP:GQ	0/1:30:150	0/1:24:236	0/1:14:151
+1	3184885	.	TAAAA	TA,T	422.00	PASS	AC=2,1;AN=4;DP=26;SF=0,1	GT:DP:GQ	1/2:10:12	0/1:16:435	.
+1	3199812	.	G	GT	.	.	AC=2;AN=2;SF=2	GT	.	.	1/1
+2	3188209	.	GA	G	162.00	.	AC=1;AN=2;DP=15;SF=1	GT:DP:GQ	.	0/1:15:162	.
+2	3199812	.	G	GTT,GT	481.00	PASS	AC=1,1;AN=2;DP=26;SF=0	GT:DP:GQ	1/2:26:322	.	.
+2	3212016	.	CTT	C	613.00	.	AC=1;AN=2;DP=11;SF=2	GT:DP:GQ	.	.	0/1:11:41
+3	3199812	.	G	GTT,GT	353.00	PASS	AC=1,1;AN=2;DP=19;SF=1	GT:DP:GQ	.	1/2:19:188	.
+3	3199815	.	G	T,A	353.00	PASS	AC=1,1;AN=4;DP=38;SF=1,2	GT:DP:GQ	.	0/2:19:188	0/1:19:188
+3	3212016	.	CTT	C,CT	565.00	PASS	AC=1,1;AN=2;DP=26;SF=0	GT:DP:GQ	1/2:26:91	.	.
+3	3242491	.	TT	T	.	.	AC=2;AN=2;SF=2	GT	.	.	1/1
+4	3212016	.	CTT	C	677.00	q20	AC=1;AN=2;DP=15;SF=1f	GT:DP:GQ	.	0/1:15:158	.
+4	3258448	.	TACACACAC	T	325.00	PASS	AC=1;AN=2;DP=31;SF=0	GT:DP:GQ	0/1:31:325	.	.
+4	3291771	.	T	TAA,TAAA	336.00	.	AC=1,1;AN=2;DP=12;SF=2	GT:DP:GQ	.	.	1/2:12:2

@@ -1,0 +1,58 @@
+##fileformat=VCFv4.1
+##samtoolsVersion=0.1.18-r572
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+##INFO=<ID=DP4,Number=4,Type=Integer,Description="# high-quality ref-forward bases, ref-reverse, alt-forward and alt-reverse bases">
+##INFO=<ID=MQ,Number=1,Type=Integer,Description="Root-mean-square mapping quality of covering reads">
+##INFO=<ID=FQ,Number=1,Type=Float,Description="Phred probability of all samples being the same">
+##INFO=<ID=AF1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele frequency (assuming HWE)">
+##INFO=<ID=AC1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele count (no HWE assumption)">
+##INFO=<ID=G3,Number=3,Type=Float,Description="ML estimate of genotype frequencies">
+##INFO=<ID=HWE,Number=1,Type=Float,Description="Chi^2 based HWE test P-value based on G3">
+##INFO=<ID=CLR,Number=1,Type=Integer,Description="Log ratio of genotype likelihoods with and without the constraint">
+##INFO=<ID=UGT,Number=1,Type=String,Description="The most probable unconstrained genotype configuration in the trio">
+##INFO=<ID=CGT,Number=1,Type=String,Description="The most probable constrained genotype configuration in the trio">
+##INFO=<ID=PV4,Number=4,Type=Float,Description="P-values for strand bias, baseQ bias, mapQ bias and tail distance bias">
+##INFO=<ID=INDEL,Number=0,Type=Flag,Description="Indicates that the variant is an INDEL.">
+##INFO=<ID=PC2,Number=2,Type=Integer,Description="Phred probability of the nonRef allele frequency in group1 samples being larger (,smaller) than in group2.">
+##INFO=<ID=PCHI2,Number=1,Type=Float,Description="Posterior weighted chi^2 P-value for testing the association between group1 and group2 samples.">
+##INFO=<ID=QCHI2,Number=1,Type=Integer,Description="Phred scaled PCHI2.">
+##INFO=<ID=PR,Number=1,Type=Integer,Description="# permutations yielding a smaller PCHI2.">
+##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=GL,Number=3,Type=Float,Description="Likelihoods for RR,RA,AA genotypes (R=ref,A=alt)">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="# high-quality bases">
+##FORMAT=<ID=DV,Number=1,Type=Integer,Description="# high-quality non-reference bases">
+##FORMAT=<ID=SP,Number=1,Type=Integer,Description="Phred-scaled strand bias P-value">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="List of Phred-scaled genotype likelihoods">
+##FILTER=<ID=StrandBias,Description="Min P-value for strand bias (INFO/PV4) [0.0001]">
+##FILTER=<ID=EndDistBias,Description="Min P-value for end distance bias (INFO/PV4) [0.0001]">
+##FILTER=<ID=MaxDP,Description="Maximum read depth (INFO/DP or INFO/DP4) [10000000]">
+##FILTER=<ID=BaseQualBias,Description="Min P-value for baseQ bias (INFO/PV4) [0]">
+##FILTER=<ID=MinAB,Description="Minimum number of alternate bases (INFO/DP4) [2]">
+##FILTER=<ID=Qual,Description="Minimum value of the QUAL field [10]">
+##FILTER=<ID=VDB,Description="Minimum Variant Distance Bias (INFO/VDB) [0]">
+##FILTER=<ID=GapWin,Description="Window size for filtering adjacent gaps [3]">
+##FILTER=<ID=MapQualBias,Description="Min P-value for mapQ bias (INFO/PV4) [0]">
+##FILTER=<ID=SnpGap,Description="SNP within INT bp around a gap to be filtered [10]">
+##FILTER=<ID=RefN,Description="Reference base is N []">
+##FILTER=<ID=MinDP,Description="Minimum read depth (INFO/DP or INFO/DP4) [2]">
+##INFO=<ID=AC,Number=A,Type=Integer,Description="Allele count in genotypes">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##FILTER=<ID=MinMQ,Description="Minimum RMS mapping quality for SNPs (INFO/MQ) [30]">
+##INFO=<ID=NOVELAL,Number=.,Type=String,Description="List of samples with novel alleles">
+##INFO=<ID=NOVELGT,Number=.,Type=String,Description="List of samples with novel genotypes">
+##INFO=<ID=NOVELTY,Number=1,Type=Integer,Description="vcf-contrast novelty score">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	A	B	C	D
+1	10250	.	A	C	61	MinMQ	DP=271;VDB=0.0265;AF1=0.125;AC1=1;DP4=87,78,18,9;MQ=17;FQ=61;PV4=0.21,1,1,0.1;AN=8;AC=1;NOVELAL=D;NOVELTY=255	GT:DP:SP:GQ	0/0:60:0:99	0/0:32:5:53	0/0:50:2:83	0/1:50:3:62
+1	10352	.	TACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCC	TAACCCTAACCCTAACCCTAACCCTAACCCTAACCCTAACCC	253	MinMQ	INDEL;DP=413;VDB=0.0226;AF1=0.8598;AC1=7;DP4=7,17,13,44;MQ=15;FQ=4.35;PV4=0.58,1,1,0.0055;AN=8;AC=7;NOVELAL=D;NOVELTY=6	GT:PL:DP:SP:GQ	1/1:67,6,0:18:2:11	1/1:14,7,0:12:0:12	1/1:111,22,0:23:0:26	0/1:83,0,22:28:2:18
+1	17538	.	C	A	64	MinMQ	DP=393;VDB=0.0314;AF1=0.125;AC1=1;DP4=138,205,17,27;MQ=28;FQ=64;PV4=0.87,0.32,1,1;AN=8;AC=1;NOVELAL=D;NOVELTY=29	GT:PL:DP:SP:GQ	0/0:0,152,255:148:1:99	0/0:0,29,227:72:4:34	0/0:0,71,255:86:6:76	0/1:70,0,226:81:4:65
+1	28563	.	A	G	999	MinMQ	DP=124;VDB=0.0072;AF1=1;AC1=8;DP4=22,31,27,39;MQ=18;FQ=-3.67;PV4=1,1,1,1;AN=8;AC=8;NOVELAL=D;NOVELTY=1	GT:PL:DP:SP:GQ	1/1:191,6,0:41:1:14	1/1:90,2,0:24:0:11	1/1:213,20,0:31:4:28	1/1:104,0,1:23:0:8
+1	28590	.	TT	TTGGT	116	MinMQ	INDEL;DP=112;VDB=0.0233;AF1=0.3933;AC1=3;DP4=5,46,10,16;MQ=19;FQ=54.6;PV4=0.005,1,1,0.00097;AN=8;AC=3;NOVELTY=9;NOVELGT=D	GT:PL:DP:SP:GQ	0/1:80,0,2:23:10:8	0/1:9,0,9:15:15:9	0/1:51,0,26:21:2:31	0/0:0,17,39:18:5:16
+1	55085	.	T	A	149	MinMQ	DP=190;VDB=0.0199;AF1=0.3891;AC1=3;DP4=73,61,13,39;MQ=25;FQ=149;PV4=0.0003,0.35,0.01,1;AN=8;AC=3;NOVELTY=7;NOVELGT=D	GT:PL:DP:SP:GQ	0/1:79,0,161:48:4:80	0/1:9,0,146:22:13:10	0/1:68,0,250:49:12:69	0/0:0,7,228:67:12:7
+1	58176	.	G	A	94.7	MinMQ	DP=93;VDB=0.0330;AF1=0.3746;AC1=3;DP4=51,13,15,9;MQ=17;FQ=94.7;PV4=0.11,0.0027,1,1;AN=8;AC=3;NOVELTY=18;NOVELGT=D	GT:PL:DP:SP:GQ	0/1:30,0,23:22:0:26	0/1:18,0,15:12:7:17	0/1:55,0,102:29:2:56	0/0:0,42,114:25:9:41
+1	66507	.	T	A	999	PASS	DP=202;VDB=0.0385;AF1=0.626;AC1=5;DP4=25,14,63,82;MQ=42;FQ=999;PV4=0.03,0.023,1,0.0014;AN=8;AC=5;NOVELTY=20;NOVELGT=D	GT:PL:DP:SP:GQ	0/1:255,0,205:42:7:99	0/1:255,0,20:37:12:21	0/1:255,0,155:57:4:99	1/1:255,72,0:48:0:71
+1	66521	.	TATATAATATA	TATATAATATAATATA	999	PASS	INDEL;DP=200;VDB=0.0384;AF1=0.3747;AC1=3;DP4=61,75,25,12;MQ=43;FQ=999;PV4=0.016,1,3.8e-20,0.38;AN=8;AC=3;NOVELTY=25;NOVELGT=D	GT:PL:DP:SP:GQ	0/1:233,0,255:40:7:99	0/1:25,0,255:32:16:26	0/1:178,0,255:56:3:99	0/0:0,75,255:45:3:74
+1	73841	.	C	T	999	PASS	DP=182;VDB=0.0366;AF1=0.3748;AC1=3;DP4=50,64,12,26;MQ=30;FQ=999;PV4=0.25,1.6e-10,0.084,1;AN=8;AC=3;NOVELTY=28;NOVELGT=D	GT:PL:DP:SP:GQ	0/1:95,0,255:33:3:96	0/1:174,0,204:27:9:99	0/1:28,0,255:53:17:29	0/0:0,64,255:39:6:63
+X	2	.	A	G	89	PASS	DP=304;VDB=0.0327;AF1=0.125;AC1=1;DP4=99,171,10,15;MQ=30;FQ=89;PV4=0.83,0.3,0.035,1;AN=8;AC=1;NOVELTY=255;NOVELGT=D	GT:PL:DP	0/1:95,0,255:11	0/0:0,72,255:11	0/0:0,101,255:11	1:255,0:11
+X	3	.	A	G	89	PASS	DP=304;VDB=0.0327;AF1=0.125;AC1=1;DP4=99,171,10,15;MQ=30;FQ=89;PV4=0.83,0.3,0.035,1;AN=8;AC=1;NOVELAL=D;NOVELTY=255	GT:PL:DP	0/0:0,95,255:11	0/0:0,72,255:11	0/0:0,101,255:11	1:255,0:11

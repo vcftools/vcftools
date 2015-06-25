@@ -1,0 +1,104 @@
+$VAR1 = {
+          'samples' => {
+                         'NA00002' => {
+                                        'indel_count' => 2,
+                                        'indel' => {
+                                                     '2' => 1,
+                                                     '-1' => 1
+                                                   },
+                                        'het_RA_count' => 6,
+                                        'snp_count' => 5,
+                                        'count' => 11,
+                                        'hom_RR_count' => 4,
+                                        'ref' => 10,
+                                        'missing' => 1,
+                                        'private' => 1,
+                                        'phased' => 7,
+                                        'het_AA_count' => 1,
+                                        'snp' => {
+                                                   'A>G' => 1,
+                                                   'A>T' => 2,
+                                                   'T>A' => 2,
+                                                   'G>A' => 1
+                                                 },
+                                        'unphased' => 4,
+                                        'ref_count' => 10
+                                      },
+                         'NA00001' => {
+                                        'het_RA_count' => 1,
+                                        'indel_count' => 1,
+                                        'indel' => {
+                                                     '1' => 1
+                                                   },
+                                        'snp_count' => 1,
+                                        'count' => 11,
+                                        'hom_RR_count' => 9,
+                                        'ref' => 10,
+                                        'missing' => 1,
+                                        'phased' => 6,
+                                        'het_AA_count' => 1,
+                                        'snp' => {
+                                                   'A>T' => 1,
+                                                   'A>G' => 1
+                                                 },
+                                        'unphased' => 5,
+                                        'ref_count' => 10
+                                      },
+                         'NA00003' => {
+                                        'hom_AA_count' => 4,
+                                        'other_count' => 2,
+                                        'indel_count' => 1,
+                                        'indel' => {
+                                                     '1' => 1
+                                                   },
+                                        'het_RA_count' => 5,
+                                        'snp_count' => 6,
+                                        'count' => 11,
+                                        'hom_RR_count' => 2,
+                                        'ref' => 7,
+                                        'missing' => 1,
+                                        'private' => 3,
+                                        'phased' => 2,
+                                        'other' => 2,
+                                        'snp' => {
+                                                   'A>C' => 1,
+                                                   'A>T' => 2,
+                                                   'A>G' => 1,
+                                                   'T>A' => 1,
+                                                   'G>A' => 1
+                                                 },
+                                        'ref_count' => 7,
+                                        'unphased' => 9
+                                      }
+                       },
+          'all' => {
+                     'other_count' => 2,
+                     'indel_count' => 2,
+                     'indel' => {
+                                  '1' => 1,
+                                  '2' => 1,
+                                  '-1' => 1
+                                },
+                     'snp_count' => 8,
+                     'count' => 12,
+                     'ref' => 2,
+                     'nalt_0' => 2,
+                     'nalt_1' => 7,
+                     'shared' => {
+                                   '1' => 4,
+                                   '0' => 2,
+                                   '3' => 2,
+                                   '2' => 4
+                                 },
+                     'other' => 2,
+                     'nalt_2' => 3,
+                     'snp' => {
+                                'A>C' => 1,
+                                'A>T' => 2,
+                                'A>G' => 2,
+                                'T>A' => 3,
+                                'G>A' => 1
+                              },
+                     'ref_count' => 2
+                   }
+        };

@@ -1,0 +1,680 @@
+#!/usr/bin/env perl
+#
+# Author: petr.danecek@sanger
+#
+
+use strict;
+use warnings;
+use Carp;
+use Vcf;
+
+my $opts = parse_params();
+vcf_isec($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "About: Create intersections, unions, complements on bgzipped and tabix indexed VCF or tab-delimited files.\n",
+        "   Note that lines from all files can be intermixed together on the output, which can yield\n",
+        "   unexpected results.\n",
+        "Usage: vcf-isec [OPTIONS] file1.vcf file2.vcf ...\n",
+        "Options:\n",
+        "   -a, --apply-filters                 Ignore lines where FILTER column is anything else than PASS or '.'\n",
+        "   -c, --complement                    Output positions present in the first file but missing from the other files.\n",
+        "   -d, --debug                         Debugging information\n",
+        "   -f, --force                         Continue even if the script complains about differing columns, VCF versions, etc.\n",
+        "   -o, --one-file-only                 Print only entries from the left-most file. Without -o, all unique positions will be printed.\n",
+        "   -n, --nfiles [+-=]<int>             Output positions present in this many (=), this many or more (+), or this many or fewer (-) files.\n",
+        "   -p, --prefix <path>                 If present, multiple files will be created with all possible isec combinations. (Suitable for Venn Diagram analysis.)\n",
+        "   -r, --regions <list|file>           Do only the given regions (comma-separated list or one region per line in a file).\n",
+        "   -t, --tab <chr:pos:file>            Tab-delimited file with indexes of chromosome and position columns. (1-based indexes)\n",
+        "   -w, --win <int>                     In repetitive sequences, the same indel can be called at different positions. Consider\n",
+        "                                           records this far apart as matching (be it a SNP or an indel).\n",
+        "   -h, -?, --help                      This help message.\n",
+        "Examples:\n",
+        "   bgzip file.vcf; tabix -p vcf file.vcf.gz\n",
+        "   bgzip file.tab; tabix -s 1 -b 2 -e 2 file.tab.gz\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    $0 =~ s{^.+/}{}; $0 .= "($Vcf::VERSION)";
+    my $opts = { positions=>0, args=>[$0, @ARGV], force=>0, split=>0, report_from_all=>1, apply_filters=>0 };
+    while (defined(my $arg=shift(@ARGV)))
+    {
+        if ( $arg eq '-p' || $arg eq '--prefix' ) 
+        { 
+            my $prefix = shift(@ARGV); 
+            $$opts{prefix} = init_outdir($opts,$prefix);
+            $$opts{split}  = 1;
+            next; 
+        }
+        if ( $arg eq '-f' || $arg eq '--force' ) { $$opts{force}=1; next; }
+        if ( $arg eq '-a' || $arg eq '--apply-filters' ) { $$opts{apply_filters}=1; next; }
+        if ( $arg eq '-r' || $arg eq '--regions' ) { $$opts{chromosomes}=shift(@ARGV); next; }
+        if ( $arg eq '-o' || $arg eq '--one-file-only' ) { $$opts{report_from_all}=0; next; }
+        if ( $arg eq '-c' || $arg eq '--complement' ) { $$opts{complement}=1; next; }
+        if ( $arg eq '-n' || $arg eq '--nfiles' )
+        {
+            my $nfiles = shift(@ARGV);
+            if ( !($nfiles=~/^([\-+=])(\d+)$/) ) { error("Could not parse: [$nfiles]\n"); }
+            $$opts{isec_op}     = $1;
+            $$opts{isec_nfiles} = $2;
+            next;
+        }
+        if ( $arg eq '-d' || $arg eq '--debug' ) { $$opts{debug}=1; next; }
+        if ( $arg eq '-w' || $arg eq '--win' ) { $$opts{win}=shift(@ARGV); next; }
+        if ( $arg eq '-t' || $arg eq '--tab' ) 
+        { 
+            my $tab = shift(@ARGV);
+            my ($chr,$pos,$file) = split(/:/,$tab);
+            push @{$$opts{files}}, Reader->new(file=>$file,chr=>$chr-1,pos=>$pos-1);
+            next; 
+        }
+        if ( -e $arg ) { push @{$$opts{files}}, $arg; next }
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        error("Unknown parameter or non-existent file \"$arg\". Run -h for help.\n");
+    }
+    if ( !exists($$opts{files}) ) { error("What files should be intersected?\n") }
+    if ( !$$opts{force} ) { $SIG{__WARN__} = sub { error(@_); } }
+    return $opts;
+}
+
+sub init_outdir
+{
+    my ($opts,$prefix) = @_;
+    if ( $prefix=~m{/} )
+    {
+        # A directory should be created. This will populate dir and prefix, for example
+        #   prefix  -> dir      prefix
+        #   ----------------------------
+        #   out                 out.dump
+        #   out/       out/     out/out.dump
+        #   out/xxx    out/     out/xxx.dump 
+        #
+        my $dir = '';
+        if ( $prefix=~m{/[^/]+$} ) { $dir=$`; }
+        elsif ( $prefix=~m{/([^/]+)/$} ) { $dir = $`.'/'.$1; $prefix = $dir.'/'.$1; }
+        elsif ( $prefix=~m{([^/]+)/?$} ) { $dir=$1; $prefix=$dir.'/'.$1; }
+        if ( $dir ) { `mkdir -p $dir`; }
+    }
+    return $prefix;
+}
+
+sub read_chrom_list
+{
+    my ($fname) = @_;
+    my @chroms;
+    if ( -e $fname )
+    {
+        open(my $chrms,'<',$fname) or error("$fname: $!");
+        while (my $line=<$chrms>)
+        {
+            chomp($line);
+            push @chroms, $line;
+        }
+        close($chrms);
+    }
+    else
+    {
+        @chroms = split(/,/,$fname);
+    }
+    return (@chroms);
+}
+
+sub check_columns
+{
+    my ($opts,$vcfs) = @_;
+
+    # Do the check for VCF files only
+    for (my $ivcf=0; $ivcf<@$vcfs; $ivcf++)
+    {
+        if ( !exists($$vcfs[$ivcf]{has_column}) ) { next; }
+
+        for (my $jvcf=0; $jvcf<$ivcf; $jvcf++)
+        {
+            if ( !exists($$vcfs[$jvcf]{has_column}) ) { next; }
+
+            if ( scalar @{$$vcfs[$ivcf]{columns}} != scalar @{$$vcfs[$jvcf]{columns}} ) 
+            {
+                my @icols = @{$$vcfs[$ivcf]{columns}};
+                my @jcols = @{$$vcfs[$jvcf]{columns}};
+                warn("Warning: The number of sample columns is different:\n",
+                    (@icols>9 ? scalar @icols - 9 : 0), ": ",
+                    join(',',@icols[9..$#icols]),"\n",
+                    scalar @jcols - 9, ": ",
+                    join(',',@jcols[9..$#jcols]),"\n",
+                    );
+                return;
+            }
+
+            for my $cname (keys %{$$vcfs[$ivcf]{has_column}})
+            {
+                if ( !exists($$vcfs[$jvcf]{has_column}{$cname}) or $$vcfs[$ivcf]{has_column}{$cname}!=$$vcfs[$jvcf]{has_column}{$cname} ) 
+                { 
+                    my @icols = @{$$vcfs[$ivcf]{columns}};
+                    my @jcols = @{$$vcfs[$jvcf]{columns}};
+                    warn("Warning: The column names do not match (e.g. $cname):\n",
+                        join(',',@icols[9..$#icols]),"\n",
+                        join(',',@jcols[9..$#jcols]),"\n",
+                        );
+                    return;
+                }
+            }
+            for my $cname (keys %{$$vcfs[$jvcf]{has_column}})
+            {
+                if ( !exists($$vcfs[$ivcf]{has_column}{$cname}) ) 
+                { 
+                    my @icols = @{$$vcfs[$ivcf]{columns}};
+                    my @jcols = @{$$vcfs[$jvcf]{columns}};
+                    warn("Warning: The column names do not match (e.g. $cname):\n",
+                        join(',',@icols[9..$#icols]),"\n",
+                        join(',',@jcols[9..$#jcols]),"\n",
+                        );
+                    return;
+                }
+            }
+        }
+    }
+}
+
+sub vcf_isec
+{
+    my ($opts) = @_;
+
+    $$opts{match} = {};
+
+    # Open the VCF files and initialize the list of chromosomes
+    my @vcfs;
+    my (@chroms,%has_chrom);
+    if ( exists($$opts{chromosomes}) ) { @chroms = read_chrom_list($$opts{chromosomes}); }
+
+    my $source;
+    my $vcf_version;
+    my $vcf_version_warned;
+    for (my $ifile=0; $ifile<@{$$opts{files}}; $ifile++)
+    {
+        my $file = $$opts{files}[$ifile];
+        my ($vcf,$file_name);
+        if ( ref($file) eq '' )
+        {
+            $vcf = Vcf->new(file=>$file);
+            $file_name = $file;
+        }
+        else
+        {
+            $vcf = $file;
+            $file_name = $$file{file};
+        }
+        $vcf->parse_header();
+        $vcf->close();
+        $$vcf{nread} = 0;
+        push @vcfs, $vcf;
+
+        # Check if the VCF versions are identical
+        if ( ref($file) eq '' )
+        {
+            if ( !defined $vcf_version ) { $vcf_version = $$vcf{version} }
+            if ( $vcf_version ne $$vcf{version} && !$vcf_version_warned )
+            {
+                warn("Warning: Mixed VCF format versions, use vcf-convert to unify.\n");
+                $vcf_version_warned = 1;
+            }
+        }
+
+        # Update the list of known chromosomes
+        if ( !exists($$opts{chromosomes}) )
+        {
+            my $chrms = $vcf->get_chromosomes();
+            for my $chr (@$chrms)
+            {
+                if ( exists($has_chrom{$chr}) ) { next; }
+                $has_chrom{$chr} = 1;
+                push @chroms, $chr;
+            }
+        }
+
+        if ( $ifile )
+        {
+            # To get the missig fields filled by the default values
+            if ( !$vcfs[0]{delim} )
+            {
+                for my $hline (@{$$vcf{header_lines}})
+                {
+                    $vcfs[0]->add_header_line($hline,silent=>1);
+                }
+            }
+            $source .= ',';
+        }
+        $source .= "$ifile:$file_name";
+        $$vcf{vcf_isec_ID} = $ifile;
+    }
+    check_columns($opts,\@vcfs);
+    $$opts{vcfs} = \@vcfs;
+
+    if ( !$vcfs[0]{delim} && !$$opts{split} )
+    {
+        $vcfs[0]->add_header_line({key=>'source',value=>join(' ',@{$$opts{args}})},append=>'timestamp');
+        $vcfs[0]->add_header_line({key=>'sourceFiles',value=>$source},append=>'timestamp');
+        $vcfs[0]->add_header_line({key=>'INFO',ID=>'SF',Number=>-1,Type=>'String',Description=>'Source File (index to sourceFiles, f when filtered)'},silent=>1);
+        print $vcfs[0]->format_header();
+    }
+
+    # Go through all the files simultaneously and get the stats.
+    for my $chr (@chroms)
+    {
+        # Open files
+        for my $vcf (@vcfs)
+        {
+            delete($$vcf{last_line});
+            $vcf->open(region=>$chr);
+            delete($$vcf{eof});
+        }
+        do_chrm_isec($opts,\@vcfs);
+    }
+
+    for my $vcf (@vcfs)
+    {
+        if ( !$$vcf{nread} ) { warn("Warning: Read 0 lines from $$vcf{file}, the tabix index may be broken.\n"); }
+    }
+}
+
+
+sub do_chrm_isec
+{
+    my ($opts,$vcfs) = @_;
+
+    my $debug = $$opts{debug} ? 1 : 0;
+    my $win   = $$opts{win} ? $$opts{win} : 0;
+    my $complement = $$opts{complement} ? 1 : 0;
+    my $report_from_all = $$opts{report_from_all} ? 1 : 0;
+    my $nfiles = scalar @{$$opts{files}};
+    my $isec_nfiles = $nfiles;
+    my $isec_op     = '=';
+    if ( exists($$opts{isec_nfiles}) )
+    {
+        $isec_nfiles = $$opts{isec_nfiles};
+        $isec_op     = $$opts{isec_op};
+    }
+    my $split = $$opts{split};
+
+    while (1)
+    {
+        my $grp = read_next_group($opts,$vcfs,$win);
+        if ( !$grp || !scalar @$grp ) { last }
+
+        if ( $debug )
+        {
+            print "Group:\n";
+            for my $rec (@$grp) { print "$$rec{chr}\t$$rec{pos}\t$$rec{vcf}{file}\n"; }
+            print "\n";
+        }
+
+        my %files; 
+        my %srcs;
+        for my $rec (@$grp)
+        {
+            my $vcf = $$rec{vcf};
+            my $src = $$vcf{vcf_isec_ID};
+
+            push @{$files{$src}}, $rec;
+
+            if ( !$$vcf{delim} )
+            {
+                # This is a VCF, check filters
+                my $fltr = $$rec{line}[6];
+                if ( !$split && $fltr ne $$vcf{filter_passed} && $fltr ne $$vcf{defaults}{default} ) { $src .= 'f'; }
+            }
+            $srcs{$$rec{pos}}{$src} = $rec;
+        }
+        if ( $split )
+        {
+            write_line($opts,$grp,\%srcs);
+            next;
+        }
+        my $nmatches = scalar keys %files;
+        if ( $complement )
+        {
+            my $src = $$vcfs[0]{vcf_isec_ID};
+            if ( !exists($files{$src}) ) { next; }
+            if ( $nmatches!=1 ) { next; }
+        }
+        elsif ( $isec_op eq '=' && $isec_nfiles!=$nmatches ) { next; }
+        elsif ( $isec_op eq '+' && $isec_nfiles>$nmatches ) { next; }
+        elsif ( $isec_op eq '-' && $isec_nfiles<$nmatches ) { next; }
+
+        # The hits are sorted by position in @$grp
+        my ($prev_chr,$prev_pos,$prev_id);
+        for my $rec (@$grp) 
+        { 
+            if ( !$report_from_all && $$rec{vcf}{vcf_isec_ID}!=0 ) { next; }
+            elsif ( defined $prev_chr && $prev_chr eq $$rec{chr} && $prev_pos eq $$rec{pos} && $prev_id ne $$rec{vcf}{vcf_isec_ID} ) { next; }
+
+            if ( !$$rec{vcf}{delim} )
+            {
+                # This is a VCF file, add annotation
+                my @tags = split(/;/,$$rec{line}[7]);
+                my $i;
+                for ($i=0; $i<@tags; $i++)
+                {
+                    if ( $tags[$i] eq '.' or $tags[$i]=~/^SF=/ ) { last; }
+                }
+                my $src = join(',',sort keys %{$srcs{$$rec{pos}}});
+                $tags[$i] = 'SF='.$src;
+                $$rec{line}[7] = join(';',@tags);
+                print join("\t",@{$$rec{line}}) . "\n";
+            }
+            else
+            {
+                print $$rec{line};
+            }
+
+            $prev_chr = $$rec{chr};
+            $prev_pos = $$rec{pos};
+            $prev_id  = $$rec{vcf}{vcf_isec_ID};
+        }
+    }
+}
+
+sub write_line
+{
+    my ($opts,$grp,$srcs) = @_;
+    for my $hash (values %$srcs)
+    {
+        my $src = join('_',sort keys %$hash);
+        if ( !exists($$opts{out_files}{$src}) )
+        {
+            my $id  = (sort keys %$hash)[0];
+            my $vcf = $$opts{vcfs}[$id];
+            $$opts{out_vcfs}{$src} = $vcf;
+            $$opts{out_recs}{$src} = $id;
+            open($$opts{out_files}{$src},"| bgzip -c > $$opts{prefix}$src.vcf.gz") or error("| bgzip -c > $$opts{prefix}$src.vcf.gz: $!");
+
+            if ( !exists($$opts{readme_fh}) ) 
+            { 
+                open($$opts{readme_fh},'>',"$$opts{prefix}_README") or error("$$opts{prefix}_README: $!"); 
+                print {$$opts{readme_fh}} "# This file was produced by vcf-isec. The command line was:\n#\t",join(' ',@{$$opts{args}}),"\n#\n";
+            }
+            print {$$opts{readme_fh}} "Using file '$$opts{prefix}$src.vcf.gz' for records present in:\n";
+            for my $rec (sort values %$hash)
+            {
+                print {$$opts{readme_fh}} "\t$$rec{vcf}{file}\n";
+            }
+            if ( !$$vcf{delim} )
+            {
+                my $fnames = join(',',sort values %$hash);
+                $vcf->add_header_line({key=>'source',value=>join(' ',@{$$opts{args}})},append=>'timestamp');
+                $vcf->add_header_line({key=>'sourceFiles',value=>$fnames},append=>'timestamp');
+                print {$$opts{out_files}{$src}} $vcf->format_header();
+            }
+        }
+    }
+
+#use Data::Dumper; print Dumper($srcs);
+    for my $pos (keys %$srcs)
+    {
+        my $src  = join('_',sort keys %{$$srcs{$pos}});
+        my $fh   = $$opts{out_files}{$src};
+        my $irec = $$opts{out_recs}{$src};
+        my $vcf  = $$opts{out_vcfs}{$src};
+        my $rec  = $$srcs{$pos}{$irec};
+
+        if ( !$$vcf{delim} )
+        {
+            print $fh join("\t",@{$$rec{line}}) . "\n";
+        }
+        else
+        {
+            print $fh $$rec{line};
+        }
+    }
+}
+
+sub read_next_group
+{
+    my ($opts,$vcfs,$win) = @_;
+
+    my @grp;
+    my $prev_vcf;
+    my $start;
+
+    while (1)
+    {
+        my $min_vcf = get_min_position($opts,$vcfs);
+
+        # No more lines in the buffer?
+        if ( !$min_vcf ) { last; }
+
+        # Nothing new has been added?
+        if ( $prev_vcf && $prev_vcf eq $$min_vcf{buf}[0] ) { last; }
+        $prev_vcf = $$min_vcf{buf}[0];
+
+        # Read everything what falls in the window. The window moves to encompass complete clusters.
+        if ( !$start or $start+$win >= $$min_vcf{buf}[0]{pos} )
+        {
+            my $rec = shift(@{$$min_vcf{buf}});
+            push @grp,$rec;
+
+            $start = $$rec{pos};
+            next; 
+        }
+    }
+    return \@grp;
+}
+
+# Return the minimum position across all opened files. If there is no line in the file's buffer, 
+#   advance to the next line. 
+sub get_min_position
+{
+    my ($opts,$vcfs) = @_;
+
+    my ($min_pos,$min_vcf);
+    for my $vcf (@$vcfs)
+    {
+        # Check if there is a line in the buffer, if not, read. If still empty, the file reached eof
+        if ( !$$vcf{buf} or !scalar @{$$vcf{buf}} ) { read_line($opts,$vcf); }
+        if ( !$$vcf{buf} or !scalar @{$$vcf{buf}} ) { next; }
+
+        my $line = $$vcf{buf}[0];
+
+        # Designate this position as the minimum of all the files if:
+        # .. is this the first file?
+        if ( !$min_pos )
+        {
+            $min_pos = $$line{pos};
+            $min_vcf = $vcf;
+            next;
+        }
+
+        # .. has this file lower position?
+        if ( $min_pos>$$line{pos} )
+        {
+            $min_pos = $$line{pos};
+            $min_vcf = $vcf;
+            next;
+        }
+    }
+    return $min_vcf;
+}
+
+# Read one line from a VCF or Reader, split it and save it to a buffer.
+sub read_line
+{
+    my ($opts,$vcf) = @_;
+
+    if ( $$vcf{eof} ) { return; }
+
+    my $line = $vcf->next_line();
+    if ( !$line )
+    {
+        $$vcf{eof} = 1;
+        return;
+    }
+
+    $$vcf{nread}++;
+
+    my ($chr,$pos,$ref,$alt);
+    if ( $$vcf{delim} )
+    {
+        my @items = split($$vcf{delim},$line);
+
+        # Reader object
+        $chr  = $items[$$vcf{chr}];
+        $pos  = $items[$$vcf{pos}];
+        $ref  = '';
+        $alt  = '';
+    }
+    else
+    {
+        # We are reading VCF, not a tab-delimited file. Apply filters when requested.
+        my @items = split(/\t/,$line);
+        while ( $$opts{apply_filters} && $items[6] ne 'PASS' && $items[6] ne '.' )
+        {
+            $line = $vcf->next_line();
+            if ( !$line )
+            {
+                $$vcf{eof} = 1;
+                return;
+            }
+            @items = split(/\t/,$line);
+        }
+        chomp($items[-1]);
+        $chr  = $items[0];
+        $pos  = $items[1];
+        $ref  = $items[3];
+        $alt  = $items[4];
+        $line = \@items;
+    }
+    if ( $$vcf{buf} && @{$$vcf{buf}} )
+    {
+        my $prev = $$vcf{buf}[-1];
+        if ( $$prev{pos} == $pos ) { warn("Position $chr:$pos appeared twice in $$vcf{file}\n"); }
+    }
+
+    push @{$$vcf{buf}}, { chr=>$chr, pos=>$pos, ref=>$ref, alt=>$alt, line=>$line, vcf=>$vcf };
+    return;
+}
+
+
+#---------------------------------
+
+package Reader;
+
+use strict;
+use warnings;
+use Carp;
+
+sub new
+{
+    my ($class,@args) = @_;
+    my $self = @args ? {@args} : {};
+    bless $self, ref($class) || $class;
+    if ( $$self{cmd} ) 
+    { 
+        $$self{file} = '';
+        open($$self{fh},$$self{cmd}) or $self->throw("$$self{cmd}: $!"); 
+    }
+    if ( !$$self{file} && !$$self{fh} ) { $self->throw("Expected the file or fh option.\n"); }
+    if ( !$$self{delim} ) { $$self{delim} = qr/\t/; }
+    if ( !$$self{chr} ) { $$self{chr} = 0; }    # the index of the chromosome column (indexed from 0)
+    if ( !$$self{pos} ) { $$self{pos} = 1; }    # the index of the position column 
+    return $self;
+}
+
+sub throw
+{
+    my ($self,@msg) = @_;
+    confess @msg;
+}
+
+sub open
+{
+    my ($self,%args) = @_;
+    if ( !$$self{file} ) { $self->throw(qq[The parameter "file" not set.\n]); }
+    $self->close();
+    if ( $$self{file}=~/\.gz$/i ) 
+    { 
+        if ( exists($args{region}) && defined($args{region}) )
+        {
+            open($$self{fh},"tabix $$self{file} $args{region} |") or $self->throw("tabix $$self{file}: $!");
+        }
+        else
+        {
+            open($$self{fh},"gunzip -c $$self{file} |") or $self->throw("gunzip -c $$self{file} |: $!"); 
+        }
+    }
+    else
+    {
+        open($$self{fh},'<',$$self{file}) or $self->throw("$$self{file}: $!");
+    }
+}
+
+sub close
+{
+    my ($self) = @_;
+    if ( !$$self{fh} ) { return; }
+    close($$self{fh});
+    delete($$self{fh});
+    delete($$self{buffer});
+}
+
+sub _unread_line
+{
+    my ($self,$line) = @_;
+    unshift @{$$self{buffer}}, $line;
+    return;
+}
+
+sub next_line
+{
+    my ($self) = @_;
+    my $line;
+    if ( $$self{buffer} && @{$$self{buffer}} ) { return shift(@{$$self{buffer}}); }
+    return readline($$self{fh}); 
+}
+
+sub parse_header
+{
+    my ($self) = @_;
+    $self->open();
+    while (1)
+    {
+        my $line = $self->next_line();
+        if ( !$line ) { last; }
+        if ( $line=~/^#/ ) { push @{$$self{header}},$line; next; }
+        $self->_unread_line($line);
+        last;
+    }
+}
+
+sub format_header
+{
+    my ($self) = @_;
+    if ( $$self{header} ) { return join('',@{$$self{header}}); }
+    return '';
+}
+
+sub get_chromosomes
+{
+    my ($self) = @_;
+    if ( !$$self{file} ) { $self->throw(qq[The parameter "file" not set.\n]); }
+    my (@out) = `tabix -l $$self{file}`;
+    if ( $? )
+    {
+        $self->throw(qq[The command "tabix -l $$self{file}" exited with an error. Is the file tabix indexed?\n]);
+    }
+    for (my $i=0; $i<@out; $i++) { chomp($out[$i]); }
+    return \@out;
+}
+

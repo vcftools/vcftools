@@ -1,0 +1,9 @@
+##fileformat=VCFv4.1
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA001
+1	5	.	C	*	.	PASS	.	GT	0/1
+1	10	.	G	*	.	PASS	.	GT	0/0
+1	12	.	GACT	G*	.	PASS	.	GT	0/1
+1	16	.	T	T***	.	PASS	.	GT	1/1
+1	61	.	C	*	.	PASS	.	GT	1/1
+2	61	.	AGAG	A*	.	PASS	.	GT	0/1
+2	481	.	T	*,@	.	PASS	.	GT	0/2
