@@ -219,7 +219,8 @@ void bcf_entry::parse_genotype_entry(unsigned int indv, bool GT, bool GQ, bool D
 		set_FORMAT();
 
 	unsigned int l_pos, indv_size, type, size, ui;
-	vector<int> ids;
+	static vector<int> ids;
+    ids.resize(0);
 
 	if ( GT && !parsed_GT[indv] && GT_idx != -1 )
 		ids.push_back(GT_idx);
