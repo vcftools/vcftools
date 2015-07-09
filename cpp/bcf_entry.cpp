@@ -220,7 +220,7 @@ void bcf_entry::parse_genotype_entry(unsigned int indv, bool GT, bool GQ, bool D
 
 	unsigned int l_pos, indv_size, type, size, ui;
 	static vector<int> ids;
-    ids.resize(0);
+	    ids.resize(0);
 
 	if ( GT && !parsed_GT[indv] && GT_idx != -1 )
 		ids.push_back(GT_idx);
@@ -597,7 +597,6 @@ void bcf_entry::print(ostream &out, const set<string> &INFO_to_keep, bool keep_a
 		parse_full_entry();
 
 	out << get_CHROM() << '\t' << POS << '\t' << get_ID() << '\t' << REF << '\t' << get_ALT();
-
 	out << '\t' << header::double2str(QUAL);
 	out << '\t' << get_FILTER();
 	out << '\t' << get_INFO(INFO_to_keep, keep_all_INFO);
@@ -635,11 +634,12 @@ void bcf_entry::print_bcf(BGZF* out, const set<string> &INFO_to_keep, bool keep_
 	else
 	{
 		int map_type, number;
+		tmp_info = get_INFO_vector(INFO_to_keep, keep_all_INFO);
+		N_INFO_removed = INFO.size()-tmp_info.size();
 
 		get_n_allele_info(tmp_vector);
 		memcpy(&out_vector[6*sizeof(int32_t)], &tmp_vector[0], sizeof(char));
 
-		tmp_info = get_INFO_vector(INFO_to_keep, keep_all_INFO);
 		for(unsigned int ui=0; ui<tmp_info.size(); ui++)
 		{
 			tmp_vector.resize(0);
