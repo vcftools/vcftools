@@ -721,6 +721,7 @@ string entry::get_typed_string(unsigned int * line_position, const vector<char>&
 	if (out == "" or out == " ")
 		out = ".";
 
+	delete [] tmp;
 	return out;
 }
 
@@ -770,7 +771,12 @@ vector<int> entry::get_int_vector(unsigned int * line_position, const vector<cha
 	unsigned int size, type;
 	get_type( line_position, line, type, size );
 	vector<int> out(size);
-	if (type == 1)
+
+	if (type == 0)
+	{
+		return out;
+	}
+	else if (type == 1)
 	{
 		int8_t tmp;
 		for (unsigned int ui=0; ui<size; ui++)
