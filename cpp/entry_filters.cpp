@@ -300,6 +300,7 @@ void entry::filter_sites_by_positions(const string &positions_file, const string
 		if (gz_in == NULL)
 			LOG.error("Could not open Positions file: " + positions_file);
 
+		keep_positions.resize(N_chr);
 		while (!gzeof(gz_in))
 		{
 			line = "";
@@ -336,7 +337,7 @@ void entry::filter_sites_by_positions(const string &positions_file, const string
 	{
 		string chr;
 		int pos1;
-		unsigned int N_chr=0;
+		unsigned int N_chr=chr_to_idx.size();
 		stringstream ss;
 		string line;
 		unsigned int gzMAX_LINE_LEN = 1024*1024;
@@ -346,6 +347,7 @@ void entry::filter_sites_by_positions(const string &positions_file, const string
 		if (gz_in == NULL)
 			LOG.error("Could not open Positions file: " + exclude_positions_file);
 
+		exclude_positions.resize(N_chr);
 		while (!gzeof(gz_in))
 		{
 			line = "";
