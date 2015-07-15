@@ -33,8 +33,8 @@ int variant_file::N_total_sites() const
 
 void variant_file::ByteSwap(unsigned char *b, int n) const
 {
-   register int i = 0;
-   register int j = n-1;
+   int i = 0;
+   int j = n-1;
    while (i<j)
    {
       std::swap(b[i], b[j]);
