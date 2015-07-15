@@ -4948,20 +4948,23 @@ void variant_file::output_PCA(const parameters &params)
 
 void variant_file::output_PCA_SNP_loadings(const parameters &params)
 {
-	int SNP_loadings_N_PCs = params.output_N_PCA_SNP_loadings;
-	bool use_normalisation = !params.PCA_no_normalisation;
+    // TODO: This function duplicates a lot of what is in the output PCA function. Would be better to combine in a more
+    // sensible fashion.
 #ifndef VCFTOOLS_PCA
 	string out = "Cannot run PCA analysis. Vcftools has been compiled without PCA enabled (requires LAPACK).";
 	LOG.error(out);
 #else
+    int SNP_loadings_N_PCs = params.output_N_PCA_SNP_loadings;
+    bool use_normalisation = !params.PCA_no_normalisation;
+
 	// Output PCA, following method of Patterson, Price and Reich 2006.
 	if ((meta_data.has_genotypes == false) | (N_kept_individuals() == 0))
 		LOG.error("Require Genotypes in VCF file in order to perform PCA.");
 
 	if (use_normalisation)
-		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (with normalisation\n");
+		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (with normalisation)\n");
 	else
-		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (without normalisation\n");
+		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (without normalisation)\n");
 	string output_file = params.output_prefix + ".pca.loadings";
 
 	streambuf * buf;
