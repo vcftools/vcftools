@@ -354,11 +354,10 @@ void bcf_entry::read_indv_generic_entry(unsigned int indv, const int &idx, strin
 	if (parsed_FORMAT == false)
 		set_FORMAT();
 
-	if(idx == GT_idx)
+	if(idx == GT_idx && !parsed_GT[indv])
 		parse_genotype_entry(indv, true);
 
 	out = ".";
-	ostringstream outstream;
 	outstream.str("");
 
 	string tmpstr;
@@ -385,14 +384,13 @@ void bcf_entry::read_indv_generic_entry(unsigned int indv, const int &idx, strin
 			else if ((genotype.first == -1) && (genotype.second == -2))
 				outstream << ".";
 			else if ((genotype.first > -1) && (genotype.second == -2))
-				outstream << header::int2str(genotype.first);
+				outstream << genotype.first;
 			else if ((genotype.first > -1) && (genotype.second > -1))
-				outstream << header::int2str(genotype.first) << phase << header::int2str(genotype.second);
+				outstream << genotype.first << phase << genotype.second;
 			else
-				outstream << header::int2str(genotype.first) << phase << header::int2str(genotype.second);
+				outstream << genotype.first << phase << genotype.second;
 
-			tmpstr = outstream.str();
-			out = tmpstr;
+			out = outstream.str();
 		}
 		else
 		{
@@ -539,7 +537,7 @@ void bcf_entry::read_all_entries(string &out)
 	if (parsed_FORMAT == false)
 		set_FORMAT();
 
-	ostringstream outstream, tmpstream;
+	ostringstream outstream;
 	string tmpstr;
 	outstream.str("");
 	tmpstream.str("");
@@ -587,7 +585,6 @@ void bcf_entry::read_all_entries(string &out)
 		tmpstream.str("");
 	}
 	out = outstream.str();
-	outstream.str("");
 }
 
 // Output BCF entry to output stream in VCF format

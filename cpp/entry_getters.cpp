@@ -214,7 +214,7 @@ string entry::get_INFO(const set<string> &INFO_to_keep, bool keep_all_INFO) cons
 	return sout.str();
 }
 
-vector<pair<string, string> > entry::get_INFO_vector(const set<string> &INFO_to_keep, bool keep_all_INFO) const
+vector<pair<string, string> > entry::get_INFO_vector(const set<string> &INFO_to_keep, bool keep_all_INFO)
 {
 	assert(parsed_INFO == true);
 
@@ -230,6 +230,8 @@ vector<pair<string, string> > entry::get_INFO_vector(const set<string> &INFO_to_
 			key = INFO[ui].first;
 			if ( keep_all_INFO or (INFO_to_keep.find(key) != INFO_to_keep.end() ) )
 				out_vector.push_back( INFO[ui] );
+			else
+				N_INFO_removed++;
 		}
 	}
 

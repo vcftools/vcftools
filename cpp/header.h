@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <string>
+#include <iostream>
 #include <map>
 #include <vector>
 #include "output_log.h"
@@ -77,6 +78,7 @@ public:
 	void add_CONTIG_descriptor(const string &in, int index);
 
 	static void tokenize(const string &in, char token, vector<string> &out);
+	static void split(const string &in, char token, vector<string> &out);
 	static int str2int(const string &in, const int missing_value=-1);
 	static string int2str(const int in, const int missing_value=-1);
 	static double str2double(const string &in, const double missing_value=-1.0);

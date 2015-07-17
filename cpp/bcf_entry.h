@@ -23,6 +23,8 @@ public:
 	unsigned int L_shared;
 	unsigned int L_indiv;
 	unsigned int line_pos;
+	ostringstream outstream;
+	ostringstream tmpstream;
 
 	void parse_basic_entry(bool parse_ALT=false, bool parse_FILTER=false, bool parse_INFO=false);
 	void parse_full_entry(bool parse_FORMAT=true);

@@ -454,6 +454,24 @@ void header::tokenize(const string &in, char token, vector<string> &out)
 	}
 }
 
+void header::split(const string &text, char sep, vector<string> &tokens)
+{
+	int start = 0, end = 0, idx = 0, max = tokens.size();
+	while ((end = text.find(sep, start)) != string::npos)
+	{
+		if (idx < max)
+			tokens[idx] = text.substr(start, end - start);
+		else
+			tokens.push_back(text.substr(start, end - start));
+		start = end + 1;
+		idx++;
+	}
+	if (idx < max)
+		tokens[idx] = text.substr(start);
+	else
+		tokens.push_back(text.substr(start));
+}
+
 string header::int2str(const int in, const int missing_value)
 {
 	if (in == missing_value)

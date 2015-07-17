@@ -111,7 +111,7 @@ public:
 	void get_n_allele_info(vector<char> &out) const;
 	void get_n_fmt_sample(vector<char> &out) const;
 	void get_ALLELES_binary(vector<char> &out);
-	vector<pair<string, string> > get_INFO_vector(const set<string> &INFO_to_keep, bool keep_all_INFO=false) const;
+	vector<pair<string, string> > get_INFO_vector(const set<string> &INFO_to_keep, bool keep_all_INFO=false);
 	void get_FORMAT_binary(vector<char> &out) const;
 
 	string get_typed_string( unsigned int * line_position, const vector<char>& line );

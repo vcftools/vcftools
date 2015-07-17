@@ -132,7 +132,7 @@ void vcf_file::print_bcf(const parameters &params)
 	uint32_t len_text = 0;
 	vector<char> header;
 
-	char magic[5] = {'B','C','F','\2', '\1'};
+	char magic[5] = {'B','C','F','\2', '\2'};
 	bgzf_write(out, magic, 5);
 
 	if (meta_data.has_idx)

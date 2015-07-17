@@ -262,7 +262,8 @@ void entry::encode_genotype(vector<char> &out, string &in, int exp_size)
 {
 	int8_t tmp_int;
 	int8_t phased = 0;
-	out.resize(0);
+	out.resize(exp_size);
+	int idx = 0;
 
 	for (unsigned int ui=0; ui<in.length(); ui++)
 	{
@@ -282,14 +283,14 @@ void entry::encode_genotype(vector<char> &out, string &in, int exp_size)
 			else
 				tmp_int = 0x80;
 
-			out.push_back( (int8_t)tmp_int );
+			out[idx] = (int8_t)tmp_int;
+			idx++;
 		}
 	}
-	int pad = out.size();
-	while (pad<exp_size)
+	while (idx<exp_size)
 	{
-		out.push_back( (int8_t)0x81 );
-		pad+=1;
+		out[idx] = (int8_t)0x81;
+		idx++;
 	}
 }
 

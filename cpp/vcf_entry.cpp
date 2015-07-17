@@ -128,32 +128,33 @@ void vcf_entry::parse_genotype_entry(unsigned int indv, bool GT, bool GQ, bool D
 		set_FORMAT(FORMAT_str);
 
 	static string tmpstr;
-	static istringstream ss;
-	ss.clear(); ss.str(GENOTYPE_str[indv]);
-
 	int N_required = GT + GQ + DP + FT;
 	int N_got = 0;
 
-	int i=0;
-	while (getline(ss, tmpstr, ':'))
+	int i=0, start = 0, end = 0;
+	while ((end = GENOTYPE_str[indv].find(':',start)) != string::npos)
 	{
 		if (GT && (i == GT_idx))
 		{
+			tmpstr = GENOTYPE_str[indv].substr(start, end - start);
 			set_indv_GENOTYPE_and_PHASE(indv, tmpstr);
 			N_got++;
 		}
 		else if (GQ && (i == GQ_idx))
 		{
+			tmpstr = GENOTYPE_str[indv].substr(start, end - start);
 			set_indv_GQUALITY(indv, header::str2double(tmpstr));
 			N_got++;
 		}
 		else if (DP && (i == DP_idx))
 		{
+			tmpstr = GENOTYPE_str[indv].substr(start, end - start);
 			set_indv_DEPTH(indv, header::str2int(tmpstr));
 			N_got++;
 		}
 		else if (FT && (i == FT_idx))
 		{
+			tmpstr = GENOTYPE_str[indv].substr(start, end - start);
 			set_indv_GFILTER(indv, tmpstr);
 			N_got++;
 		}
@@ -161,6 +162,34 @@ void vcf_entry::parse_genotype_entry(unsigned int indv, bool GT, bool GQ, bool D
 		if (N_got == N_required)
 			break;
 		i++;
+		start = end + 1;
+	}
+	if (N_got != N_required)
+	{
+		if (GT && (i == GT_idx))
+		{
+			tmpstr = GENOTYPE_str[indv].substr(start);
+			set_indv_GENOTYPE_and_PHASE(indv, tmpstr);
+			N_got++;
+		}
+		else if (GQ && (i == GQ_idx))
+		{
+			tmpstr = GENOTYPE_str[indv].substr(start);
+			set_indv_GQUALITY(indv, header::str2double(tmpstr));
+			N_got++;
+		}
+		else if (DP && (i == DP_idx))
+		{
+			tmpstr = GENOTYPE_str[indv].substr(start);
+			set_indv_DEPTH(indv, header::str2int(tmpstr));
+			N_got++;
+		}
+		else if (FT && (i == FT_idx))
+		{
+			tmpstr = GENOTYPE_str[indv].substr(start);
+			set_indv_GFILTER(indv, tmpstr);
+			N_got++;
+		}
 	}
 
 	// Set missing return values if requested a value, but couldn't find it
@@ -197,17 +226,20 @@ void vcf_entry::parse_FORMAT()
 	vector< vector<string> > format_matrix(N_indv);
 
 	unsigned int type, number, size, position=0;
-
+	tmp_split.resize(FORMAT.size());
 	for (unsigned int ui=0; ui<N_indv; ui++)
 	{
+		format_matrix[ui].resize(FORMAT.size());
 		if ( (GENOTYPE_str[ui] != "") and (GENOTYPE_str[ui] != ".") )
-			header::tokenize(GENOTYPE_str[ui],':', tmp_split);
+			header::split(GENOTYPE_str[ui],':', tmp_split);
 		else
 			tmp_split.assign(FORMAT.size(),".");
-		format_matrix[ui] = tmp_split;
+
+		for (unsigned int uj=0; uj<tmp_split.size(); uj++)
+			format_matrix[ui][uj] = tmp_split[uj];
 
 		for (unsigned int uj=format_matrix[ui].size(); uj<FORMAT.size(); uj++)
-			format_matrix[ui].push_back(".");
+			format_matrix[ui][uj] = ".";
 	}
 
 	FORMAT_positions.resize(FORMAT.size()); FORMAT_types.resize(FORMAT.size()); FORMAT_skip.resize(FORMAT.size());
