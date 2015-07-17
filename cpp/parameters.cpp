@@ -303,7 +303,7 @@ void parameters::read_parameters()
 		else if (in_str == "--out") { output_prefix = get_arg(i+1); i++; }							// Output file prefix
 		else if (in_str == "--pca") { output_PCA = true; min_alleles=2; max_alleles=2; num_outputs++;}
 		else if (in_str == "--pca-no-norm") { output_PCA = true; PCA_no_normalisation = true; min_alleles=2; max_alleles=2; num_outputs++;}
-		else if (in_str == "--pca-snp-loadings") { output_N_PCA_SNP_loadings = atoi(get_arg(i+1).c_str()); i++; num_outputs++;}
+		else if (in_str == "--pca-snp-loadings") { output_N_PCA_SNP_loadings = atoi(get_arg(i+1).c_str()); min_alleles=2; max_alleles=2; i++; num_outputs++;}
 		else if (in_str == "--phased") phased_only = true;								// Keep only phased individuals / sites
 		else if (in_str == "--plink") {plink_output = true; num_outputs++;}				// Output as PLINK file
 		else if (in_str == "--plink-tped") {plink_tped_output = true; num_outputs++;}	// Output as PLINK tped file
@@ -483,10 +483,9 @@ void parameters::print_params()
 			LOG.printLOG("\t--pca\n");
 		else
 			LOG.printLOG("\t--pca-no-norm\n");
-
-		if (output_N_PCA_SNP_loadings != defaults.output_N_PCA_SNP_loadings)
-			LOG.printLOG("\t--pca-snp-loadings " + output_log::int2str(output_N_PCA_SNP_loadings) + "\n");
 	}
+    if (output_N_PCA_SNP_loadings != defaults.output_N_PCA_SNP_loadings)
+        LOG.printLOG("\t--pca-snp-loadings " + output_log::int2str(output_N_PCA_SNP_loadings) + "\n");
 	if (output_prefix != defaults.output_prefix) LOG.printLOG("\t--out " + output_prefix + "\n");
 	if (output_relatedness_Yang) LOG.printLOG("\t--relatedness\n");
 	if (output_relatedness_Manichaikul) LOG.printLOG("\t--relatedness2\n");

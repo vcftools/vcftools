@@ -390,12 +390,7 @@ void entry::filter_sites_by_positions(const string &positions_file, const string
 			else
 			{
 				idx = chr_to_idx[CHROM];
-				bool found=false;
-
-				if (keep_positions[idx].find(POS) != keep_positions[idx].end())
-					found = true;
-
-				if (found == false)
+				if (keep_positions[idx].find(POS) == keep_positions[idx].end())
 					passed_filters = false;
 			}
 	}
@@ -404,13 +399,8 @@ void entry::filter_sites_by_positions(const string &positions_file, const string
 		if (chr_to_idx.find(CHROM) != chr_to_idx.end())
 		{
 			idx = chr_to_idx[CHROM];
-			bool found=false;
-
 			if (exclude_positions[idx].find(POS) != exclude_positions[idx].end())
-				found = true;
-
-				if (found == true)
-					passed_filters = false;
+                passed_filters = false;
 		}
 	}
 }

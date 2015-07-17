@@ -1216,7 +1216,6 @@ void variant_file::output_haplotype_count(const parameters &params)
 	}
 
 	vector< vector<int> > haplotypes(2*meta_data.N_indv);
-	unsigned int count = 0;
 	vector<char> variant_line;
 	entry *e = get_entry_object();
 	string haplotype;
@@ -4775,11 +4774,11 @@ void variant_file::output_indv_relatedness_Yang(const parameters &params)
 
 void variant_file::output_PCA(const parameters &params)
 {
-	bool use_normalisation = !params.PCA_no_normalisation;
 #ifndef VCFTOOLS_PCA
 	string out = "Cannot run PCA analysis. Vcftools has been compiled without PCA enabled (requires LAPACK).";
 	LOG.error(out);
 #else
+    bool use_normalisation = !params.PCA_no_normalisation;
 	// Output PCA, following method of Patterson, Price and Reich 2006.
 	if ((meta_data.has_genotypes == false) | (N_kept_individuals() == 0))
 		LOG.error("Require Genotypes in VCF file in order to perform PCA.");
@@ -4948,20 +4947,23 @@ void variant_file::output_PCA(const parameters &params)
 
 void variant_file::output_PCA_SNP_loadings(const parameters &params)
 {
-	int SNP_loadings_N_PCs = params.output_N_PCA_SNP_loadings;
-	bool use_normalisation = !params.PCA_no_normalisation;
+    // TODO: This function duplicates a lot of what is in the output PCA function. Would be better to combine in a more
+    // sensible fashion.
 #ifndef VCFTOOLS_PCA
 	string out = "Cannot run PCA analysis. Vcftools has been compiled without PCA enabled (requires LAPACK).";
 	LOG.error(out);
 #else
+    int SNP_loadings_N_PCs = params.output_N_PCA_SNP_loadings;
+    bool use_normalisation = !params.PCA_no_normalisation;
+
 	// Output PCA, following method of Patterson, Price and Reich 2006.
 	if ((meta_data.has_genotypes == false) | (N_kept_individuals() == 0))
 		LOG.error("Require Genotypes in VCF file in order to perform PCA.");
 
 	if (use_normalisation)
-		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (with normalisation\n");
+		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (with normalisation)\n");
 	else
-		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (without normalisation\n");
+		LOG.printLOG("Outputting " + header::int2str(SNP_loadings_N_PCs) + " SNP loadings (without normalisation)\n");
 	string output_file = params.output_prefix + ".pca.loadings";
 
 	streambuf * buf;
@@ -4994,6 +4996,14 @@ void variant_file::output_PCA_SNP_loadings(const parameters &params)
 
 	vector< vector<double> > M(N_indvs);
 	vector< vector<double> > ids(N_indvs);
+    
+    map<int, string> idx_to_chrom;
+    map<string, int> chrom_to_idx;
+    string chr;
+    int pos;
+    int chrom_idx = 0;
+    vector<int> CHROMidx_list;
+    vector<int> pos_list;
 
 	vector<char> variant_line;
 	entry *e = get_entry_object();
@@ -5021,7 +5031,7 @@ void variant_file::output_PCA_SNP_loadings(const parameters &params)
 
 		e->parse_genotype_entries(true);
 		if (e->is_diploid() == false)
-			LOG.error("PCA only works for fully diploid sites.");
+			LOG.error("PCA only works for fully diploid sites. Non-diploid site at " + e->get_CHROM() + ":" + output_log::int2str(e->get_POS()));
 
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
 		freq = allele_counts[1] / (double)N_non_missing_chr;	// Alt allele frequency
@@ -5031,6 +5041,19 @@ void variant_file::output_PCA_SNP_loadings(const parameters &params)
 
 		double mu = freq*2.0;
 		double div = 1.0 / sqrt(freq * (1.0-freq));
+        
+        chr = e->get_CHROM();
+        pos = e->get_POS();
+        
+        if (chrom_to_idx.find(chr) == chrom_to_idx.end())
+        {
+            chrom_to_idx[chr] = chrom_idx;
+            idx_to_chrom[chrom_idx] = chr;
+            chrom_idx++;
+        }
+        
+        CHROMidx_list.push_back(chrom_to_idx[chr]);
+        pos_list.push_back(pos);
 
 		ui_prime = 0;
 		for (unsigned int ui=0; ui<meta_data.N_indv; ui++)
@@ -5099,17 +5122,21 @@ void variant_file::output_PCA_SNP_loadings(const parameters &params)
 	{
 		vector<double> gamma(SNP_loadings_N_PCs, 0.0);
 		vector<double> a_sum(SNP_loadings_N_PCs, 0.0);
-		out << e->get_CHROM() << "\t" << e->get_POS();
+        
+        chr = idx_to_chrom[CHROMidx_list[ui]];
+        pos = pos_list[ui];
+        
+		out << chr << "\t" << pos;
 
-		for (unsigned int uj_prime=0; uj_prime<meta_data.N_indv; uj_prime++)
+		for (unsigned int uj_prime=0; uj_prime<N_indvs; uj_prime++)
 		{
-			x = ids[ui][uj_prime];
+			x = ids[uj_prime][ui];
 			if (x > -1)
 			{
 				for (unsigned int uk=0; uk<(unsigned int)SNP_loadings_N_PCs; uk++)
 				{
-					gamma[uk] += (x * Evecs[ui][uk]);
-					a_sum[uk] += (Evecs[ui][uk]*Evecs[ui][uk]);
+					gamma[uk] += (x * Evecs[uj_prime][uk]);
+					a_sum[uk] += (Evecs[uj_prime][uk]*Evecs[uj_prime][uk]);
 				}
 			}
 		}
@@ -5118,6 +5145,10 @@ void variant_file::output_PCA_SNP_loadings(const parameters &params)
 		out << endl;
 	}
 	delete e;
+    delete [] Er;
+    delete [] Ei;
+    delete [] Evecs;
+    delete [] X;
 #endif
 }
 
