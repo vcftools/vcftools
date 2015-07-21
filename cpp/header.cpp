@@ -7,6 +7,7 @@
 
 #include "header.h"
 
+
 header::header()
 {
 	has_contigs = false; has_file_format = false; has_genotypes = false;
@@ -17,27 +18,26 @@ header::header()
 void header::parse_meta(const string &line, unsigned int &line_index)
 {
 	lines.push_back(line);
-	if (line.find("##fileformat=")!=string::npos)
+	if (line.compare(0,13,"##fileformat=")==0)
 	{
 		has_file_format = true;
-		size_t found = line.find_first_of("=");
-		string version = line.substr(found+1);
+		string version = line.substr(13);
 		if ((version != "VCFv4.0") && (version != "VCFv4.1") && (version != "VCFv4.2"))
 			LOG.error("VCF version must be v4.0, v4.1 or v4.2:\nYou are using version " + version);
 	}
-	else if (line.find("##INFO=")!=string::npos)
+	else if (line.compare(0,7,"##INFO=")==0)
 	{	// Found an INFO descriptor
 		line_index += add_INFO_descriptor(line.substr(8, line.size()-8), line_index);
 	}
-	else if (line.find("##FILTER=")!=string::npos)
+	else if (line.compare(0,9,"##FILTER=")==0)
 	{	// Found a FILTER descriptor
 		line_index += add_FILTER_descriptor(line.substr(10, line.size()-8), line_index);
 	}
-	else if (line.find("##FORMAT=")!=string::npos)
+	else if (line.compare(0,9,"##FORMAT=")==0)
 	{	// Found a genotype filter descriptor
 		line_index += add_FORMAT_descriptor(line.substr(10, line.size()-8), line_index);
 	}
-	else if (line.find("##contig=")!=string::npos)
+	else if (line.compare(0,9,"##contig=")==0)
 	{	// Found a contig descriptor
 		add_CONTIG_descriptor(line.substr(10, line.size()-8), contig_index);
 		contig_index++;
