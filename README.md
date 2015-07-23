@@ -9,18 +9,17 @@ The program package is released under the GNU Lesser General Public License vers
 
 Credits
 -------
-Adam Auton        (cpp executable)<br>
-Petr Danecek      (perl)<br>
-Anthony Marcketta (cpp executable)<br>
+Adam Auton (Binary Executable)<br>
+Petr Danecek (Perl Module)<br>
+Anthony Marcketta (Binary Executable)<br>
 
 Compiling
 ---------
-To compile and install VCFtools, you should type `make` in the vcftools folder. The perl scripts and cpp executable will be installed in the /vcftools_(version_num)/bin/ folder. It is recommended that you add this folder to you PATH.
+To compile and install VCFtools, you should type `make` in the vcftools folder. The perl scripts and cpp executable will be installed in the /vcftools<i>_(version_num)</i>/bin/ folder. It is recommended that you add this folder to your PATH.
 
 Documentation
 -------------
-The latest version of the documentation and examples of usage can be 
-found here: https://vcftools.github.io/examples.html
+Documentation and usage examples of usage can be found here: <br>https://vcftools.github.io/examples.html
 
 A man page is also available. From the vcftools bin folder, you can type: <br>
 `man ./man1/vcftools.1`
@@ -32,6 +31,6 @@ vcftools-help@lists.sourceforge.net
 
 Citation
 --------
-If you make use of VCFtools in your research, we would appreciate a citation of the following paper:
+If you make use of VCFtools in your research, we would appreciate a citation of the following paper:<br>
 
 <b>The Variant Call Format and VCFtools</b>, Petr Danecek, Adam Auton, Goncalo Abecasis, Cornelis A. Albers, Eric Banks, Mark A. DePristo, Robert Handsaker, Gerton Lunter, Gabor Marth, Stephen T. Sherry, Gilean McVean, Richard Durbin and 1000 Genomes Project Analysis Group, <b>Bioinformatics</b>, 2011 http://dx.doi.org/10.1093/bioinformatics/btr330
