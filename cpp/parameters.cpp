@@ -647,7 +647,10 @@ void parameters::print_help()
 			cout << "Process Variant Call Format files" << endl;
 			cout << endl;
 			cout << "For a list of options, please go to:" << endl;
-			cout << "\thttps://vcftools.github.io/examples.html" << endl;
+			cout << "\thttps://vcftools.github.io/man_latest.html" << endl;
+            cout << endl;
+            cout << "Alternatively, a man page is available. From within the vcftools bin folder, type:" << endl;
+            cout << "man ./man1/vcftools.1" << endl;
 			cout << endl;
 			cout << "Questions, comments, and suggestions should be emailed to:" << endl;
 			cout << "\tvcftools-help@lists.sourceforge.net" << endl;

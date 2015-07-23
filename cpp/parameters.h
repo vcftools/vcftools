@@ -27,7 +27,7 @@ extern output_log LOG;
 
 using namespace std;
 
-const string VCFTOOLS_VERSION="v0.1.13";
+const string VCFTOOLS_VERSION="v0.1.14";
 static const uint8_t bgzf_magic[19] = "\037\213\010\4\0\0\0\0\0\377\6\0\102\103\2\0\0\0"; //just compare the first 16 chars? though
 static const uint8_t gzip_magic[2] = {0x1f,0x8b};
 
