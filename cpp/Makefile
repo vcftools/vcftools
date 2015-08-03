@@ -35,13 +35,13 @@ ifeq ($(VCFTOOLS_PCA), 1)
 endif
 
 vcftools: $(OBJS)
-	$(CPP) $(CPPFLAGS) $(OBJS) -o vcftools $(LIB)
+	$(CPP) $(CPPFLAGS) $(OBJS) -o vcftools $(LIB) $(LDFLAGS)
 ifdef BINDIR
 	cp $(CURDIR)/$@ $(BINDIR)/$@
 endif
 
 bgzf: bgzf.c
-	$(CC) -c $(CFLAGS) $(FLAGS) bgzf.c $(LIB) -o bgzf.o
+	$(CC) -c $(CFLAGS) $(FLAGS) bgzf.c $(LIB) $(LDFLAGS) -o bgzf.o
 
 # pull in dependency info for *existing* .o files
 -include $(OBJS:.o=.d)
