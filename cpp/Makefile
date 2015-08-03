@@ -14,7 +14,7 @@ endif
 # Compiler flags
 CFLAGS = -O2 -m64
 #CFLAGS = -Wall -O2 -pg -m64
-CPPFLAGS = -O2 -D_FILE_OFFSET_BITS=64 
+CPPFLAGS += -O2 -D_FILE_OFFSET_BITS=64
 #CPPFLAGS = -O2 -Wall -pg -D_FILE_OFFSET_BITS=64
 # Included libraries (zlib)
 LIB = -lz 
