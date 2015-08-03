@@ -5,8 +5,8 @@ BIN = fill-aa fill-an-ac fill-fs fill-ref-md5 vcf-annotate vcf-compare vcf-conca
 MOD = FaSlice.pm Vcf.pm VcfStats.pm
 
 install:
-	    @for i in $(BIN); do cp $(CURDIR)/$$i $(BINDIR)/$$i; done; \
-        for i in $(MOD); do cp $(CURDIR)/$$i $(MODDIR)/$$i; done; 
+	for i in $(BIN); do install -Dm755 $(CURDIR)/$$i $(BINDIR)/$$i; done; \
+	for i in $(MOD); do install -Dm644 $(CURDIR)/$$i $(MODDIR)/$$i; done;
 
 clean:
 		@for i in $(BIN); do rm -f $(BINDIR)/$$i; done; \
