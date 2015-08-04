@@ -34,6 +34,7 @@ install:
 
 .PHONY: clean
 clean:
+	rm -f $(MANDIR)/vcftools.1
 	@for dir in $(DIRS); do \
 	  cd $$dir && $(MAKE) $(MAKEFLAGS) clean && cd .. ; \
 	done

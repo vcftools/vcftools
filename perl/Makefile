@@ -6,10 +6,10 @@ MOD = FaSlice.pm Vcf.pm VcfStats.pm
 
 .PHONY: install
 install:
-	for i in $(BIN); do install -Dm755 $(CURDIR)/$$i $(BINDIR)/$$i; done; \
-	for i in $(MOD); do install -Dm644 $(CURDIR)/$$i $(MODDIR)/$$i; done;
+	for i in $(BIN); do install -Dm755 $(CURDIR)/$$i $(BINDIR)/$$i; done
+	for i in $(MOD); do install -Dm644 $(CURDIR)/$$i $(MODDIR)/$$i; done
 
 .PHONY: clean
 clean:
-	for i in $(BIN); do rm -f $(BINDIR)/$$i; done; \
-	for i in $(MOD); do rm -f $(MODDIR)/$$i; done;
+	for i in $(BIN); do rm -f $(BINDIR)/$$i; done
+	for i in $(MOD); do rm -f $(MODDIR)/$$i; done

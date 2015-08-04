@@ -51,11 +51,11 @@ bgzf: bgzf.c
 	$(CPP) -MM $(CPPFLAGS) $*.cpp > $*.d
 
 .PHONY: install
-install:
+install: vcftools
 	install -Dm755 $(CURDIR)/vcftools $(BINDIR)/vcftools
 
 # remove compilation products
 .PHONY: clean
 clean:
-	@rm -f vcftools *.o *.d
-	@rm -f $(BINDIR)/vcftools
+	rm -f vcftools *.o *.d
+	rm -f $(BINDIR)/vcftools
