@@ -54,7 +54,7 @@ Documentation and usage examples can be found here:
 https://vcftools.github.io/examples.html
 
 A manual page is also available. If prefix is set to `/usr` or if `MANPATH` points to
-`$prefix/usr/share/man`, you can type:
+`$prefix/share/man`, you can access the manual page via:
 
 ```
 man vcftools
@@ -72,7 +72,7 @@ Citation
 
 If you make use of VCFtools in your research, we would appreciate a citation of the following paper:
 
-**The Variant Call Format and VCFtools**, Petr Danecek, Adam Auton, Goncalo Abecasis, Cornelis
-A. Albers, Eric Banks, Mark A. DePristo, Robert Handsaker, Gerton Lunter, Gabor Marth, Stephen
-T. Sherry, Gilean McVean, Richard Durbin and 1000 Genomes Project Analysis Group,
-**Bioinformatics**, 2011 http://dx.doi.org/10.1093/bioinformatics/btr330
+> **The Variant Call Format and VCFtools**, Petr Danecek, Adam Auton, Goncalo Abecasis, Cornelis
+> A. Albers, Eric Banks, Mark A. DePristo, Robert Handsaker, Gerton Lunter, Gabor Marth, Stephen
+> T. Sherry, Gilean McVean, Richard Durbin and 1000 Genomes Project Analysis Group,
+> **Bioinformatics**, 2011 http://dx.doi.org/10.1093/bioinformatics/btr330
