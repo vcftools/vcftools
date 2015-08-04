@@ -6,9 +6,6 @@
 CC = gcc
 CXX = g++
 
-# Output executable
-EXECUTABLE = vcftools
-
 # Flag used to turn on compilation of PCA routines
 ifndef VCFTOOLS_PCA
 	VCFTOOLS_PCA = 0
