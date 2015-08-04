@@ -49,11 +49,11 @@ make install
 Documentation
 -------------
 
-Documentation and usage examples of usage can be found here:
+Documentation and usage examples can be found here:
 
 https://vcftools.github.io/examples.html
 
-A manual page is also available. If prefix is set to the default `/usr` or if `MANPATH` points to
+A manual page is also available. If prefix is set to `/usr` or if `MANPATH` points to
 `$prefix/usr/share/man`, you can type:
 
 ```
