@@ -3,7 +3,6 @@
 
 AC_PREREQ([2.69])
 AC_INIT([vcftools], [0.1.13], [https://github.com/vcftools/vcftools/issues])
-AC_CONFIG_MACRO_DIRS([m4])
 AC_CONFIG_SRCDIR([src/cpp/vcftools.cpp])
 AC_CONFIG_HEADERS([config.h])
 
