@@ -1,0 +1,71 @@
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
+
+AC_PREREQ([2.69])
+AC_INIT([vcftools], [0.1.13], [https://github.com/vcftools/vcftools/issues])
+AC_CONFIG_MACRO_DIRS([m4])
+AC_CONFIG_SRCDIR([src/cpp/vcftools.cpp])
+AC_CONFIG_HEADERS([config.h])
+
+# Automake invocation.
+AM_INIT_AUTOMAKE([foreign])
+
+# Checks for programs.
+AC_PROG_CXX
+AC_PROG_CC
+AC_PROG_CPP
+
+# Checks for perl.
+AC_PATH_PROGS([PERL], [perl] [perl5], [false])
+if test "x$PERL" = xfalse ; then
+  AC_MSG_ERROR([Perl not found; check your \$PATH.])
+fi
+
+pmdir_relative_path=`\
+$PERL -MConfig \
+      -wle '($_ = $Config{installsitelib})
+            =~ s!^\Q$Config{siteprefix}/!!; \
+            print'`
+
+AC_ARG_WITH(
+    [pmdir],
+    AS_HELP_STRING(
+      [--with-pmdir=DIR],
+      [install Perl modules in DIR]),
+    [PMDIR=${withval}],
+    [PMDIR='${prefix}'/"$pmdir_relative_path"])
+
+AC_SUBST([PMDIR])
+
+# Checks for libraries.
+PKG_CHECK_MODULES(ZLIB, zlib)
+
+# Checks for header files.
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h stdint.h stdlib.h string.h sys/socket.h unistd.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_CHECK_HEADER_STDBOOL
+AC_C_INLINE
+AC_TYPE_INT16_T
+AC_TYPE_INT32_T
+AC_TYPE_INT64_T
+AC_TYPE_INT8_T
+AC_TYPE_OFF_T
+AC_TYPE_SIZE_T
+AC_TYPE_SSIZE_T
+AC_TYPE_UINT16_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT8_T
+
+# Checks for library functions.
+AC_FUNC_ERROR_AT_LINE
+AC_FUNC_FSEEKO
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_CHECK_FUNCS([gethostbyaddr gethostbyname memset pow select socket sqrt strchr strdup strerror strstr strtol])
+
+AC_CONFIG_FILES([Makefile
+                 src/Makefile
+                 src/cpp/Makefile
+                 src/perl/Makefile])
+AC_OUTPUT
