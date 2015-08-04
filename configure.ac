@@ -56,9 +56,11 @@ AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
 
+# Checks for operating system services or capabilities.
+AC_SYS_LARGEFILE
+
 # Checks for library functions.
 AC_FUNC_ERROR_AT_LINE
-AC_FUNC_FSEEKO
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([gethostbyaddr gethostbyname memset pow select socket sqrt strchr strdup strerror strstr strtol])
