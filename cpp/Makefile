@@ -13,7 +13,7 @@ endif
 
 # Compiler flags
 CFLAGS += -O2 -D_FILE_OFFSET_BITS=64
-CXXFLAGS += $(CFLAGS)
+CXXFLAGS += -O2 -D_FILE_OFFSET_BITS=64
 
 # Included libraries (zlib)
 LIBS = -lz
