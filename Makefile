@@ -24,10 +24,17 @@ export MANDIR = ${PREFIX}/share/man/man1
 export MODDIR = ${PREFIX}/lib/perl5/site_perl
 
 DIRS = cpp perl
-install:
-	    @mkdir -p $(BINDIR); mkdir -p $(MODDIR); mkdir -p $(MANDIR); \
-	    cp ${SRCDIR}/cpp/vcftools.1 $(MANDIR); \
-        for dir in $(DIRS); do cd $$dir && $(MAKE) $(MAKEFLAGS) && cd ..; done
 
+.PHONY: install
+install:
+	install -Dm644 ${SRCDIR}/cpp/vcftools.1 $(MANDIR)/vcftools.1
+	@for dir in $(DIRS) ; do \
+	  cd $$dir && $(MAKE) $(MAKEFLAGS) install && cd .. ; \
+	done
+
+.PHONY: clean
 clean:
-		@for dir in $(DIRS); do cd $$dir && $(MAKE) clean && cd ..; done
+	rm -f $(MANDIR)/vcftools.1
+	@for dir in $(DIRS); do \
+	  cd $$dir && $(MAKE) $(MAKEFLAGS) clean && cd .. ; \
+	done

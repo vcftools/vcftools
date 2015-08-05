@@ -46,7 +46,12 @@ endif
 	$(CXX) -c $(CPPFLAGS) $(CXXFLAGS) $*.cpp -o $*.o
 	$(CXX) -MM $(CPPFLAGS) $(CXXFLAGS) $*.cpp > $*.d
 
+.PHONY: install
+install: vcftools
+	install -Dm755 $(CURDIR)/vcftools $(BINDIR)/vcftools
+
 # remove compilation products
+.PHONY: clean
 clean:
-	@rm -f vcftools *.o *.d
-	@rm -f $(BINDIR)/vcftools
+	rm -f vcftools *.o *.d
+	rm -f $(BINDIR)/vcftools
