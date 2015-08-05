@@ -20,7 +20,7 @@ ifndef PREFIX
     export PREFIX = ${SRCDIR}
 endif
 export BINDIR = ${PREFIX}/bin
-export MANDIR = ${PREFIX}/bin/man1
+export MANDIR = ${PREFIX}/share/man/man1
 export MODDIR = ${PREFIX}/lib/perl5/site_perl
 
 DIRS = cpp perl
