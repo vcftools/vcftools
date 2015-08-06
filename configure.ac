@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([vcftools], [0.1.13], [https://github.com/vcftools/vcftools/issues])
+AC_INIT([vcftools], [0.1.14-SNAPSHOT], [https://github.com/vcftools/vcftools/issues])
 AC_CONFIG_SRCDIR([src/cpp/vcftools.cpp])
 AC_CONFIG_HEADERS([config.h])
 
