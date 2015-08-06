@@ -640,6 +640,12 @@ void parameters::print_help()
 	for(i = 0; i < argv.size(); i++)
 	{
 		in_str = argv[i];
+        if ((in_str == "--version"))
+        {
+            cout << "VCFtools (" << VCFTOOLS_VERSION << ")" << endl;
+            exit(0);
+        }
+        
 		if ((in_str == "-h") || (in_str == "-?") || (in_str == "-help") || (in_str == "--?") || (in_str == "--help") || (in_str == "--h"))
 		{
 			cout << endl << "VCFtools (" << VCFTOOLS_VERSION << ")" << endl;
