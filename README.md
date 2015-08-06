@@ -34,6 +34,7 @@ General help about the building process's configuration step can be acquired via
 make
 make install
 ```
+You many need `sudo` permissions to run `make install`.
 
 ### Build from GitHub
 
@@ -45,6 +46,7 @@ cd vcftools
 make
 make install
 ```
+You many need `sudo` permissions to run `make install`.
 
 Documentation
 -------------
