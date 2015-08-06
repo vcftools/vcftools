@@ -9,7 +9,7 @@
 #define VARIANT_FILE_H_
 
 #if HAVE_CONFIG_H
-# include <config.h>
+# include "config.h"
 #endif
 
 #include <algorithm>
