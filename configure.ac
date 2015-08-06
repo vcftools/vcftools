@@ -65,6 +65,17 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([gethostbyaddr gethostbyname memset pow select socket sqrt strchr strdup strerror strstr strtol])
 
+# Optional features.
+AC_ARG_ENABLE([pca],
+              AS_HELP_STRING([--enable-pca], [enable PCA feature]),
+              [pca=${enableval}],
+              [pca=no])
+
+if test "x${pca}" = "xyes" ; then
+  AC_CHECK_LIB(lapack, dgeev_)
+fi
+
+# Generate output.
 AC_CONFIG_FILES([Makefile
                  src/Makefile
                  src/cpp/Makefile

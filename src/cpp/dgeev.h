@@ -21,6 +21,12 @@
     Evecs: an n by n matrix to hold the eigenvectors.
 */
 
+#if HAVE_CONFIG_H
+# include <config.h>
+#endif
+
+#if HAVE_LIBLAPACK
+
 #ifndef DGEEV_H_
 #define DGEEV_H_
 
@@ -34,10 +40,12 @@ void dgeev_ftoc(double *in, double **out, int rows, int cols);
 void dgeev_sort(double *Er, double *Ei, int N);
 void dgeev_sort(double *Er, double *Ei, double **Evecs, int N);
 
- 
+
 extern "C" void dgeev_(char *jobvl, char *jobvr, int *n, double *a,
 		       int *lda, double *wr, double *wi, double *vl,
 		       int *ldvl, double *vr, int *ldvr,
 		       double *work, int *lwork, int *info);
+
+#endif
 
 #endif

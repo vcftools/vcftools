@@ -11,6 +11,8 @@ vcftools_SOURCES = \
 	bcf_file.h \
 	bgzf.c \
 	bgzf.h \
+	dgeev.cpp \
+	dgeev.h \
 	entry.cpp \
 	entry_filters.cpp \
 	entry_getters.cpp \
