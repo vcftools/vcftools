@@ -640,6 +640,12 @@ void parameters::print_help()
 	for(i = 0; i < argv.size(); i++)
 	{
 		in_str = argv[i];
+        if ((in_str == "--version"))
+        {
+            cout << "VCFtools (" << VCFTOOLS_VERSION << ")" << endl;
+            exit(0);
+        }
+        
 		if ((in_str == "-h") || (in_str == "-?") || (in_str == "-help") || (in_str == "--?") || (in_str == "--help") || (in_str == "--h"))
 		{
 			cout << endl << "VCFtools (" << VCFTOOLS_VERSION << ")" << endl;
@@ -649,8 +655,8 @@ void parameters::print_help()
 			cout << "For a list of options, please go to:" << endl;
 			cout << "\thttps://vcftools.github.io/man_latest.html" << endl;
             cout << endl;
-            cout << "Alternatively, a man page is available. From within the vcftools bin folder, type:" << endl;
-            cout << "man ./man1/vcftools.1" << endl;
+            cout << "Alternatively, a man page is available, type:" << endl;
+            cout << "\tman vcftools" << endl;
 			cout << endl;
 			cout << "Questions, comments, and suggestions should be emailed to:" << endl;
 			cout << "\tvcftools-help@lists.sourceforge.net" << endl;

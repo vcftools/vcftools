@@ -8,6 +8,10 @@
 #ifndef VARIANT_FILE_H_
 #define VARIANT_FILE_H_
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
 #include <algorithm>
 #include <bitset>
 #include <cstdlib>
@@ -38,8 +42,8 @@
 #include "bcf_entry.h"
 #include "header.h"
 
-#ifdef VCFTOOLS_PCA
-	#include "dgeev.h"
+#if HAVE_LIBLAPACK
+# include "dgeev.h"
 #endif
 
 extern output_log LOG;

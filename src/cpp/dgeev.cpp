@@ -6,6 +6,12 @@
  * ($Revision: 1 $)
  */
 
+#if HAVE_CONFIG_H
+# include "config.h"
+#endif
+
+#if HAVE_LIBLAPACK
+
 #include "dgeev.h"
 
 void dgeev_sort(double *Er, double *Ei, int N)
@@ -144,3 +150,5 @@ void dgeev(double **H, int n, double *Er, double *Ei, double **Evecs)
 	delete [] vr;
 	delete [] work;
 }
+
+#endif
