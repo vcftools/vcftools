@@ -1434,18 +1434,20 @@ void variant_file::output_haplotype_r2(const parameters &params)
 	pair<int, int> geno;
 	vector<char> variant_line;
 	string CHROM,CHROM2;
-	int POS,POS2;
+	int POS,POS2,ret = -1;
 	vector<char> out_line, tmp_int;
 	entry *e = get_entry_object();
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	char *ret = mktemp(tmpname);
-	ofstream fd(tmpname, std::ios::out | std::ios::binary);
-	if (!fd.is_open())
-		LOG.error(" Could not open temporary file.\n", 12);
 
+	ret = mkstemp(tmpname);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+
+	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 	out_line.reserve(meta_data.N_indv+10);
 	int indv_miss = 0;
 	while(!eof())
@@ -1609,18 +1611,20 @@ void variant_file::output_genotype_r2(const parameters &params)
 	entry *e = get_entry_object();
 	int count = 0;
 	string CHROM, CHROM2;
-	int POS, POS2;
+	int POS, POS2, ret = -1;
 	pair<int, int> geno;
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	char *ret = mktemp(tmpname);
-	ofstream fd(tmpname, std::ios::out | std::ios::binary);
-	if (!fd.is_open())
-		LOG.error(" Could not open temporary file.\n", 12);
 
+	ret = mkstemp(tmpname);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+
+	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 	out_line.reserve(meta_data.N_indv+10);
 	int indv_miss = 0;
 	while(!eof())
@@ -1740,6 +1744,7 @@ void variant_file::output_genotype_r2(const parameters &params)
 			out << CHROM << "\t" << POS << "\t" << POS2 << "\t" << indv_count << "\t" << r2 << endl;
 		}
 	}
+	tmp_file.close();
 	remove(tmpname);
 	delete e;
 }
@@ -1781,17 +1786,19 @@ void variant_file::output_genotype_chisq(const parameters &params, double min_pv
 	int POS, POS2;
 	pair<int,int> geno;
 	int8_t tmp_alleles;
-	int alleles, alleles2;
+	int alleles, alleles2, ret = -1;
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	char *ret = mktemp(tmpname);
-	ofstream fd(tmpname, std::ios::out | std::ios::binary);
-	if (!fd.is_open())
-		LOG.error(" Could not open temporary file.\n", 12);
 
+	ret = mkstemp(tmpname);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+
+	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 	out_line.reserve(2*meta_data.N_indv+11);
 	int indv_miss = 0;
 	while(!eof())
@@ -1907,6 +1914,7 @@ void variant_file::output_genotype_chisq(const parameters &params, double min_pv
 			out << CHROM << "\t" << POS << "\t" << POS2 << "\t" << indv_count << "\t" << chisq << "\t" << dof << "\t" << pval << endl;
 		}
 	}
+	tmp_file.close();
 	remove(tmpname);
 	delete e;
 }
@@ -1942,18 +1950,20 @@ void variant_file::output_interchromosomal_genotype_r2(const parameters &params)
 	entry *e = get_entry_object();
 	int count = 0;
 	string CHROM, CHROM2;
-	int POS, POS2;
+	int POS, POS2, ret = -1;
 	pair<int,int> geno;
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	char *ret = mktemp(tmpname);
-	ofstream fd(tmpname, std::ios::out | std::ios::binary);
-	if (!fd.is_open())
-		LOG.error(" Could not open temporary file.\n", 12);
 
+	ret = mkstemp(tmpname);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+
+	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 	out_line.reserve(meta_data.N_indv+10);
 	int indv_miss = 0;
 	while(!eof())
@@ -2061,6 +2071,7 @@ void variant_file::output_interchromosomal_genotype_r2(const parameters &params)
 			out << CHROM << "\t" << POS << "\t" << CHROM2 << "\t" << POS2 << "\t" << indv_count << "\t" << r2 << endl;
 		}
 	}
+	tmp_file.close();
 	remove(tmpname);
 	delete e;
 }
@@ -2097,17 +2108,19 @@ void variant_file::output_interchromosomal_haplotype_r2(const parameters &params
 	pair<int, int> geno;
 	vector<char> variant_line;
 	string CHROM,CHROM2;
-	int POS,POS2;
+	int POS,POS2,ret=-1;
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	char *ret = mktemp(tmpname);
-	ofstream fd(tmpname, std::ios::out | std::ios::binary);
-	if (!fd.is_open())
-		LOG.error(" Could not open temporary file.\n", 12);
 
+	ret = mkstemp(tmpname);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+
+	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 	out_line.reserve(meta_data.N_indv+10);
 	int indv_miss = 0;
 	while(!eof())
@@ -2218,6 +2231,7 @@ void variant_file::output_interchromosomal_haplotype_r2(const parameters &params
 			out << CHROM << "\t" << POS << "\t" << CHROM2 << "\t" << POS2 << "\t" << chr_count << "\t" << r2 << endl;
 		}
 	}
+	tmp_file.close();
 	remove(tmpname);
 	delete e;
 }
@@ -2243,7 +2257,7 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 	stringstream ss;
 	pair<int, int> geno;
 	string CHROM, CHROM2;
-	int POS, POS2, idx;
+	int POS, POS2, idx, ret = -1;
 	unsigned int N_chr=0;
 	vector<char> out_line, tmp_int;
 
@@ -2305,17 +2319,21 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	char *ret = mktemp(tmpname);
-	ofstream fd(tmpname, std::ios::out | std::ios::binary);
-	if (!fd.is_open())
+
+	ret = mkstemp(tmpname);
+	if (ret == -1)
 		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 
 	char tmpname2[new_tmp.size()];
 	strcpy(tmpname2, new_tmp.c_str());
-	ret = mktemp(tmpname2);
-	ofstream fd_POS(tmpname2, std::ios::out | std::ios::binary);
-	if (!fd_POS.is_open())
+
+	ret = mkstemp(tmpname2);
+	if (ret == -1)
 		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+	ofstream fd_POS(tmpname2, std::ios::out | std::ios::binary);
 
 	nlist = 0;
 	int indv_miss = 0;
@@ -2429,7 +2447,7 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 		file_pos2 = tmp_file2.tellg();
 
 		tmp_file.seekg(0);
-		for(unsigned int uj=0; uj<site_count; uj++)
+		for(int uj=0; uj<site_count; uj++)
 		{
 			read_temp_site(tmp_file, CHROM2, POS2, GTs2);
 
@@ -2441,9 +2459,9 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 				continue;
 
 			int list_pos = list_positions[ui];
-			if ( fabs(list_pos - uj) < snp_window_min)
+			if ( abs(list_pos - uj) < snp_window_min)
 				continue;
-			if ( fabs(list_pos - uj) > snp_window_size)
+			if ( abs(list_pos - uj) > snp_window_size)
 				continue;
 
 			calc_hap_r2(GTs, GTs2, r2, D, Dprime, chr_count);
@@ -2455,6 +2473,8 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 			out << CHROM << "\t" << POS << "\t" << CHROM2 << "\t" << POS2 << "\t" << chr_count << "\t" << r2 << endl;
 		}
 	}
+	tmp_file.close();
+	tmp_file2.close();
 	remove(tmpname);
 	remove(tmpname2);
 	delete e;
@@ -2478,7 +2498,7 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 	string line;
 	stringstream ss;
 	string CHROM, CHROM2;
-	int POS, POS2, idx;
+	int POS, POS2, idx, ret = -1;
 	pair<int,int> geno;
 	unsigned int N_chr=0;
 	double min_r2 = params.min_r2;
@@ -2541,17 +2561,21 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	char *ret = mktemp(tmpname);
-	ofstream fd(tmpname, std::ios::out | std::ios::binary);
-	if (!fd.is_open())
+
+	ret = mkstemp(tmpname);
+	if (ret == -1)
 		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 
 	char tmpname2[new_tmp.size()];
 	strcpy(tmpname2, new_tmp.c_str());
-	ret = mktemp(tmpname2);
-	ofstream fd_POS(tmpname2, std::ios::out | std::ios::binary);
-	if (!fd_POS.is_open())
+
+	ret = mkstemp(tmpname2);
+	if (ret == -1)
 		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+	ofstream fd_POS(tmpname2, std::ios::out | std::ios::binary);
 
 	nlist = 0;
 	int indv_miss = 0;
@@ -2657,7 +2681,7 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 		file_pos2 = tmp_file2.tellg();
 
 		tmp_file.seekg(0);
-		for(unsigned int uj=0; uj<site_count; uj++)
+		for(int uj=0; uj<site_count; uj++)
 		{
 			read_temp_site(tmp_file, CHROM2, POS2, GTs2);
 
@@ -2669,9 +2693,9 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 				continue;
 
 			int list_pos = list_positions[ui];
-			if ( fabs(list_pos - uj) < snp_window_min)
+			if ( abs(list_pos - uj) < snp_window_min)
 				continue;
-			if ( fabs(list_pos - uj) > snp_window_size)
+			if ( abs(list_pos - uj) > snp_window_size)
 				continue;
 
 			calc_geno_r2(GTs, GTs2, r2, indv_count);
@@ -2683,6 +2707,8 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 			out << CHROM << "\t" << POS << "\t" << CHROM2 << "\t" << POS2 << "\t" << indv_count << "\t" << r2 << endl;
 		}
 	}
+	tmp_file.close();
+	tmp_file2.close();
 	remove(tmpname);
 	remove(tmpname2);
 	delete e;
@@ -4774,7 +4800,7 @@ void variant_file::output_indv_relatedness_Yang(const parameters &params)
 
 void variant_file::output_PCA(const parameters &params)
 {
-#if !(HAVE_LIBLAPACK)
+#ifndef VCFTOOLS_PCA
 	string out = "Cannot run PCA analysis. Vcftools has been compiled without PCA enabled (requires LAPACK).";
 	LOG.error(out);
 #else
@@ -4949,7 +4975,7 @@ void variant_file::output_PCA_SNP_loadings(const parameters &params)
 {
     // TODO: This function duplicates a lot of what is in the output PCA function. Would be better to combine in a more
     // sensible fashion.
-#if !(HAVE_LIBLAPACK)
+#ifndef VCFTOOLS_PCA
 	string out = "Cannot run PCA analysis. Vcftools has been compiled without PCA enabled (requires LAPACK).";
 	LOG.error(out);
 #else

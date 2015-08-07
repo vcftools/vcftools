@@ -622,16 +622,18 @@ void variant_file::output_as_LDhat_phased(const parameters &params)
 
 	unsigned int n_sites = 0;
 	int max_pos = -1;
-	char* fd;
+	int ret = -1;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	fd = mktemp(tmpname);
+
+	ret = mkstemp(tmpname);
 	string locs_tmp_filename(tmpname);
-	ofstream *locs_tmp_file = new ofstream(tmpname);
-	if (!locs_tmp_file->good())
-		LOG.error("\nCould not open temporary file.\n", 12);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+	ofstream locs_tmp_file(tmpname, std::ios::out | std::ios::binary);
 
 	string sites_file = params.output_prefix + ".ldhat.sites";
 	string locs_file = params.output_prefix + ".ldhat.locs";
@@ -655,13 +657,12 @@ void variant_file::output_as_LDhat_phased(const parameters &params)
 
 		char tmpname[new_tmp.size()];
 		strcpy(tmpname, new_tmp.c_str());
-		fd = mktemp(tmpname);
-
+		ret = mkstemp(tmpname);
 		ofstream *tmp_file = new ofstream(tmpname);
-		if (!tmp_file->good())
+		if (ret == -1)
 		{	// Clean up temp files.
 			tmp_file->close(); remove(tmpname);
-			locs_tmp_file->close(); remove(locs_tmp_filename.c_str());
+			locs_tmp_file.close(); remove(locs_tmp_filename.c_str());
 			for (unsigned int uj=0; uj<ui; uj++)
 			{
 				(tmp_files[2*uj])->close(); remove(tmp_filenames[2*uj].c_str());
@@ -671,18 +672,19 @@ void variant_file::output_as_LDhat_phased(const parameters &params)
 					"Most likely this is because the system is not allowing me to open enough temporary files.\n"
 					"Try using ulimit -n <int> to increase the number of allowed open files.\n", 12);
 		}
+		::close(ret);
+
 		tmp_files[2*ui] = tmp_file;
 		tmp_filenames[2*ui] = tmpname;
 
 		char tmpname2[new_tmp.size()];
 		strcpy(tmpname2, new_tmp.c_str());
-		fd = mktemp(tmpname2);
-
+		ret = mkstemp(tmpname2);
 		ofstream *tmp_file2 = new ofstream(tmpname2);
-		if (!tmp_file2->good())
+		if (ret == -1)
 		{	// Clean up temp files.
 			tmp_file2->close(); remove(tmpname2);
-			locs_tmp_file->close(); remove(locs_tmp_filename.c_str());
+			locs_tmp_file.close(); remove(locs_tmp_filename.c_str());
 			for (unsigned int uj=0; uj<ui; uj++)
 			{
 				(tmp_files[2*uj])->close(); remove(tmp_filenames[2*uj].c_str());
@@ -693,6 +695,8 @@ void variant_file::output_as_LDhat_phased(const parameters &params)
 				"Most likely this is because the system is not allowing me to open enough temporary files.\n"
 				"Try using ulimit -n <int> to increase the number of allowed open files.\n", 12);
 		}
+		::close(ret);
+
 		tmp_files[2*ui+1] = tmp_file2;
 		tmp_filenames[2*ui+1] = tmpname2;
 	}
@@ -720,7 +724,7 @@ void variant_file::output_as_LDhat_phased(const parameters &params)
 		}
 		POS = e->get_POS();
 		max_pos = max(POS, max_pos);
-		(*locs_tmp_file) << POS << endl;
+		locs_tmp_file << POS << endl;
 		for (unsigned int ui=0; ui<meta_data.N_indv; ui++)
 		{
 			if (include_indv[ui] == false)
@@ -788,7 +792,6 @@ void variant_file::output_as_LDhat_phased(const parameters &params)
 		}
 	}
 	delete e;
-	delete locs_tmp_file;
 	remove(locs_tmp_filename.c_str());
 	sites.close();
 }
@@ -802,16 +805,18 @@ void variant_file::output_as_LDhat_unphased(const parameters &params)
 
 	unsigned int n_sites = 0;
 	int max_pos = -1;
-	char* fd;
+	int ret = -1;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
 	char tmpname[new_tmp.size()];
 	strcpy(tmpname, new_tmp.c_str());
-	fd = mktemp(tmpname);
+
+	ret = mkstemp(tmpname);
 	string locs_tmp_filename(tmpname);
-	ofstream *locs_tmp_file = new ofstream(tmpname);
-	if (!locs_tmp_file->good())
-		LOG.error("\nCould not open temporary file.\n", 12);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+	ofstream locs_tmp_file(tmpname, std::ios::out | std::ios::binary);
 
 	string sites_file = params.output_prefix + ".ldhat.sites";
 	string locs_file = params.output_prefix + ".ldhat.locs";
@@ -835,13 +840,15 @@ void variant_file::output_as_LDhat_unphased(const parameters &params)
 
 		char tmpname[new_tmp.size()];
 		strcpy(tmpname, new_tmp.c_str());
-		fd = mktemp(tmpname);
+
+		ret = mkstemp(tmpname);
 		string filename(tmpname);
 		ofstream *tmp_file = new ofstream(tmpname);
-		if (!tmp_file->good())
+
+		if (ret == -1)
 		{	// Clean up temp files
 			tmp_file->close(); remove(tmpname);
-			locs_tmp_file->close(); remove(locs_tmp_filename.c_str());
+			locs_tmp_file.close(); remove(locs_tmp_filename.c_str());
 			for (unsigned int uj=0; uj<ui; uj++)
 			{
 				(tmp_files[uj])->close(); remove(tmp_filenames[uj].c_str());
@@ -850,6 +857,7 @@ void variant_file::output_as_LDhat_unphased(const parameters &params)
 					"Most likely this is because the system is not allowing me to open enough temporary files.\n"
 					"Try using ulimit -n <int> to increase the number of allowed open files.\n", 12);
 		}
+		::close(ret);
 		tmp_files[ui] = tmp_file;
 		tmp_filenames[ui] = filename;
 	}
@@ -877,7 +885,7 @@ void variant_file::output_as_LDhat_unphased(const parameters &params)
 		}
 		POS = e->get_POS();
 		max_pos = max(POS, max_pos);
-		(*locs_tmp_file) << POS << endl;
+		locs_tmp_file << POS << endl;
 		for (unsigned int ui=0; ui<meta_data.N_indv; ui++)
 		{
 			if (include_indv[ui] == false)
@@ -967,7 +975,6 @@ void variant_file::output_as_LDhat_unphased(const parameters &params)
 		remove(tmp_filenames[ui].c_str());
 	}
 	delete e;
-	delete locs_tmp_file;
 	remove(locs_tmp_filename.c_str());
 	sites.close();
 }
