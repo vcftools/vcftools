@@ -2435,16 +2435,15 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 	ifstream tmp_file2(tmpname2, ios::binary);
 	vector<pair<int,int> > GTs, GTs2;
 	streampos file_pos = 0;
-	streampos file_pos2 = 0;
 
 	GTs.resize(meta_data.N_indv-indv_miss, make_pair(-1,-1));
 	GTs2.resize(meta_data.N_indv-indv_miss, make_pair(-1,-1));
 
 	for(unsigned int ui=0; ui<nlist; ui++)
 	{
-		tmp_file2.seekg(file_pos2);
+		tmp_file2.seekg(file_pos);
 		read_temp_site(tmp_file2, CHROM, POS, GTs);
-		file_pos2 = tmp_file2.tellg();
+		file_pos = tmp_file2.tellg();
 
 		tmp_file.seekg(0);
 		for(int uj=0; uj<site_count; uj++)
@@ -2670,15 +2669,14 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 	ifstream tmp_file2(tmpname2, ios::binary);
 	vector<pair<int,int> > GTs, GTs2;
 	streampos file_pos = 0;
-	streampos file_pos2 = 0;
 
 	GTs.resize(meta_data.N_indv-indv_miss, make_pair(-1,-1));
 	GTs2.resize(meta_data.N_indv-indv_miss, make_pair(-1,-1));
 	for(unsigned int ui=0; ui<nlist; ui++)
 	{
-		tmp_file2.seekg(file_pos2);
+		tmp_file2.seekg(file_pos);
 		read_temp_site(tmp_file2, CHROM, POS, GTs);
-		file_pos2 = tmp_file2.tellg();
+		file_pos = tmp_file2.tellg();
 
 		tmp_file.seekg(0);
 		for(int uj=0; uj<site_count; uj++)
