@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.63])
 AC_INIT([vcftools], [0.1.14-SNAPSHOT], [https://github.com/vcftools/vcftools/issues])
 AC_CONFIG_SRCDIR([src/cpp/vcftools.cpp])
 AC_CONFIG_HEADERS([config.h])
@@ -43,7 +43,7 @@ PKG_CHECK_MODULES(ZLIB, zlib)
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h stdint.h stdlib.h string.h sys/socket.h unistd.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
-AC_CHECK_HEADER_STDBOOL
+AC_HEADER_STDBOOL
 AC_C_INLINE
 AC_TYPE_INT16_T
 AC_TYPE_INT32_T
