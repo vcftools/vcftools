@@ -3521,7 +3521,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 		buf = cout.rdbuf();
 
 	ostream out(buf);
-	out << "CHROM\tPOS\tWEIR_AND_COCKERHAM_FST" << endl;
+	out << "CHROM\tPOS\tWEIR_AND_COCKERHAM_FST\tPARTIAL_WFST_NUMERATOR\tPARTIAL_WFST_DENOMINATOR" << endl;
 
 	entry *e = get_entry_object();
 	vector<char> variant_line;
@@ -3625,7 +3625,8 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 			sum3 += fst;
 			count++;
 		}
-		out << e->get_CHROM() << "\t" << e->get_POS() << "\t" << fst << endl;
+        out << e->get_CHROM() << "\t" << e->get_POS() << "\t" << fst << "\t" << sum_a << "\t" << sum_all << endl;
+
 	}
 
 	double weighted_Fst = sum1 / sum2;
