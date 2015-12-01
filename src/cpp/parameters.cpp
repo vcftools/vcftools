@@ -712,7 +712,7 @@ void parameters::check_parameters()
 	if (max_alleles < min_alleles) error("Max Number of Alleles must be greater than Min Number of Alleles.", 6);
 	if (max_mean_depth < min_mean_depth) error("Max Mean Depth must be greater the Min Mean Depth.", 7);
 	if (max_genotype_depth < min_genotype_depth) error("Max Genotype Depth must be greater than Min Genotype Depth.", 9);
-	if (((output_as_ldhat_phased == true) || (output_as_ldhat_unphased)) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting LDhat format.", 11);
+	if (((output_as_ldhat_phased == true) || (output_as_ldhat_unphased) || (output_as_ldhelmet)) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting LDhat format.", 11);
 	if ((output_BEAGLE_genotype_likelihoods_GL == true) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting Beagle likelihoods.", 11);
 	if ((output_BEAGLE_genotype_likelihoods_PL == true) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting Beagle likelihoods.", 11);
 	if (min_kept_mask_value > 9) error("Min Mask value must be between 0 and 9.", 14);
