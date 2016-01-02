@@ -113,6 +113,7 @@ public:
 	bool output_as_IMPUTE;
 	bool output_as_ldhat_phased;
 	bool output_as_ldhat_unphased;
+	bool output_as_ldhelmet;
 	bool output_BEAGLE_genotype_likelihoods_GL;
 	bool output_BEAGLE_genotype_likelihoods_PL;
 	bool output_counts;

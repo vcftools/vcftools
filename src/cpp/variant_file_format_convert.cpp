@@ -979,6 +979,183 @@ void variant_file::output_as_LDhat_unphased(const parameters &params)
 	sites.close();
 }
 
+// Output LDhelmet format
+void variant_file::output_as_LDhelmet(const parameters &params)
+{
+	if (meta_data.has_genotypes == false)
+		LOG.error("Require Genotypes in VCF file in order to output LDhelmet format.");
+
+	LOG.printLOG("Outputting in LDhelmet format\n");
+
+	unsigned int n_snps = 0;
+	int max_pos = -1;
+	int ret = -1;
+
+	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
+	char tmpname[new_tmp.size()];
+	strcpy(tmpname, new_tmp.c_str());
+
+	ret = mkstemp(tmpname);
+	string pos_tmp_filename(tmpname);
+	if (ret == -1)
+		LOG.error(" Could not open temporary file.\n", 12);
+	::close(ret);
+	ofstream pos_tmp_file(tmpname, std::ios::out | std::ios::binary);
+
+	string snps_file = params.output_prefix + ".ldhelmet.snps";
+	string pos_file = params.output_prefix + ".ldhelmet.pos";
+
+	ofstream snps(snps_file.c_str());
+	if (!snps.is_open())
+		LOG.error("Could not open LDhelmet snps Output File: " + snps_file, 2);
+	ofstream pos(pos_file.c_str());
+	if (!pos.is_open())
+		LOG.error("Could not open LDhelmet pos Output File: " + pos_file, 2);
+
+	unsigned int n_indv = N_kept_individuals();
+	pair<int, int> genotypes;
+	vector<string> alleles;
+
+	vector<ofstream *> tmp_files(2*meta_data.N_indv);
+	vector<string> tmp_filenames(2*meta_data.N_indv);
+	for (unsigned int ui=0; ui<meta_data.N_indv; ui++)
+	{
+		if (include_indv[ui] == false)
+			continue;
+
+		char tmpname[new_tmp.size()];
+		strcpy(tmpname, new_tmp.c_str());
+		ret = mkstemp(tmpname);
+		ofstream *tmp_file = new ofstream(tmpname);
+		if (ret == -1)
+		{	// Clean up temp files.
+			tmp_file->close(); remove(tmpname);
+			pos_tmp_file.close(); remove(pos_tmp_filename.c_str());
+			for (unsigned int uj=0; uj<ui; uj++)
+			{
+				(tmp_files[2*uj])->close(); remove(tmp_filenames[2*uj].c_str());
+				(tmp_files[2*uj+1])->close(); remove(tmp_filenames[2*uj+1].c_str());
+			}
+			LOG.error("\n\nCould not open temporary file.\n\n"
+					"Most likely this is because the system is not allowing me to open enough temporary files.\n"
+					"Try using ulimit -n <int> to increase the number of allowed open files.\n", 12);
+		}
+		::close(ret);
+
+		tmp_files[2*ui] = tmp_file;
+		tmp_filenames[2*ui] = tmpname;
+
+		char tmpname2[new_tmp.size()];
+		strcpy(tmpname2, new_tmp.c_str());
+		ret = mkstemp(tmpname2);
+		ofstream *tmp_file2 = new ofstream(tmpname2);
+		if (ret == -1)
+		{	// Clean up temp files.
+			tmp_file2->close(); remove(tmpname2);
+			pos_tmp_file.close(); remove(pos_tmp_filename.c_str());
+			for (unsigned int uj=0; uj<ui; uj++)
+			{
+				(tmp_files[2*uj])->close(); remove(tmp_filenames[2*uj].c_str());
+				(tmp_files[2*uj+1])->close(); remove(tmp_filenames[2*uj+1].c_str());
+			}
+			(tmp_files[2*ui])->close(); remove(tmp_filenames[2*ui].c_str());
+			LOG.error("\n\nCould not open temporary file.\n\n"
+				"Most likely this is because the system is not allowing me to open enough temporary files.\n"
+				"Try using ulimit -n <int> to increase the number of allowed open files.\n", 12);
+		}
+		::close(ret);
+
+		tmp_files[2*ui+1] = tmp_file2;
+		tmp_filenames[2*ui+1] = tmpname2;
+	}
+
+	vector<char> variant_line;
+	entry *e = get_entry_object();
+	ofstream *tmp_file;
+	int POS;
+
+	while(!eof())
+	{
+		get_entry(variant_line);
+		e->reset(variant_line);
+		N_entries += e->apply_filters(params);
+
+		if(!e->passed_filters)
+			continue;
+		N_kept_entries++;
+		e->parse_basic_entry(true);
+
+		POS = e->get_POS();
+		max_pos = max(POS, max_pos);
+		pos_tmp_file << POS << endl;
+		for (unsigned int ui=0; ui<meta_data.N_indv; ui++)
+		{
+			if (include_indv[ui] == false)
+				continue;
+
+			e->parse_genotype_entry(ui, true);
+			e->get_indv_GENOTYPE_ids(ui, genotypes);
+			e->get_alleles_vector(alleles);
+
+			for (unsigned int k=0; k<2; k++)
+			{
+				tmp_file = tmp_files[(2*ui)+k];
+
+				int geno;
+				if (k == 0)
+					geno = genotypes.first;
+				else
+					geno = genotypes.second;
+
+				if ((geno >= 0) && (e->include_genotype[ui]==true))
+					(*tmp_file) << alleles[geno];
+				else
+					(*tmp_file) << "N";
+			}
+		}
+		n_snps++;
+	}
+
+	pos.setf(ios::fixed,ios::floatfield);
+	pos.precision(4);
+	ifstream pos_read_file(pos_tmp_filename.c_str());
+	string tmp_line;
+	for (unsigned int ui=0; ui<n_snps; ui++)
+	{
+		getline(pos_read_file,tmp_line);
+		POS = header::str2int(tmp_line);
+		pos << POS << endl;
+	}
+	pos.close();
+	for (unsigned int ui=0; ui<meta_data.N_indv; ui++)
+	{
+		if (include_indv[ui] == false)
+			continue;
+
+		for (unsigned int k=0; k<2; k++)
+		{
+			ofstream *tmp_file = tmp_files[2*ui+k];
+			(*tmp_file) << endl;
+			tmp_file->close();
+			delete tmp_file;
+
+			ifstream read_file(tmp_filenames[2*ui+k].c_str());
+			if (!read_file.good())
+				LOG.error("\n\nCould not open temporary file.\n\n"
+				"Most likely this is because the system is not allowing me to open enough temporary files.\n"
+				"Try using ulimit -n <int> to increase the number of allowed open files.\n", 12);
+			getline(read_file, tmp_line);
+			snps << ">" << meta_data.indv[ui] << "-" << k << endl;
+			snps << tmp_line << endl;
+			read_file.close();
+			remove(tmp_filenames[2*ui+k].c_str());
+		}
+	}
+	delete e;
+	remove(pos_tmp_filename.c_str());
+	snps.close();
+}
+
 // Output INFO fields in tab-delimited format
 void variant_file::output_INFO_for_each_site(const parameters &params)
 {

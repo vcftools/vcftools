@@ -130,6 +130,7 @@ public:
 	void output_as_IMPUTE(const parameters &params);
 	void output_as_LDhat_phased(const parameters &params);
 	void output_as_LDhat_unphased(const parameters &params);
+	void output_as_LDhelmet(const parameters &params);
 	void output_FORMAT_information(const parameters &params);
 
 	void output_weir_and_cockerham_fst(const parameters &params);

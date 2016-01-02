@@ -89,6 +89,7 @@ int main(int argc, char *argv[])
 	if (params.output_BEAGLE_genotype_likelihoods_PL == true) vf->output_BEAGLE_genotype_likelihoods(params, 1);
 	if (params.output_as_ldhat_unphased == true) vf->output_as_LDhat_unphased(params);
 	if (params.output_as_ldhat_phased == true) vf->output_as_LDhat_phased(params);
+	if (params.output_as_ldhelmet == true) vf->output_as_LDhelmet(params);
 	if (params.output_singletons == true) vf->output_singletons(params);
 	if (params.output_site_pi == true) vf->output_per_site_nucleotide_diversity(params);
 	if (params.pi_window_size > 0) vf->output_windowed_nucleotide_diversity(params);

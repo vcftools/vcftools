@@ -693,9 +693,11 @@ This option outputs phased haplotypes in IMPUTE reference-panel format. As IMPUT
 .PP
 .B --ldhat
 .br
+.B --ldhelmet
+.br
 .B --ldhat-geno
 .RS 2
-These options output data in LDhat format. This option requires the "--chr" filter option to also be used. The first option outputs phased data only, and therefore also implies "--phased" be used, leading to unphased individuals and genotypes being excluded. The second option treats all of the data as unphased, and therefore outputs LDhat files in genotype/unphased format. Two output files are generated with the suffixes ".ldhat.sites" and ".ldhat.locs", which correspond to the LDhat "sites" and "locs" input files respectively.
+These options output data in LDhat/LDhelmet format. This option requires the "--chr" filter option to also be used. The two first options output phased data only, and therefore also implies "--phased" be used, leading to unphased individuals and genotypes being excluded. For LDhelmet, only snps will be considered, and therefore it implies "--remove-indels". The second option treats all of the data as unphased, and therefore outputs LDhat files in genotype/unphased format. Two output files are generated with the suffixes ".ldhat.sites" and ".ldhat.locs", which correspond to the LDhat "sites" and "locs" input files respectively; for LDhelmet, the two files generated have the suffixes ".ldhelmet.snps" and ".ldhelmet.pos", which corresponds to the "SNPs" and "positions" files. 
 .RE
 .PP
 .B --BEAGLE-GL

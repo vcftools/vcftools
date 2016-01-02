@@ -86,6 +86,7 @@ parameters::parameters(int argc, char *argv[])
 	output_as_IMPUTE = false;
 	output_as_ldhat_phased = false;
 	output_as_ldhat_unphased = false;
+	output_as_ldhelmet = false;
 	output_BEAGLE_genotype_likelihoods_GL = false;
 	output_BEAGLE_genotype_likelihoods_PL = false;
 	output_counts = false;
@@ -269,6 +270,7 @@ void parameters::read_parameters()
 		else if (in_str == "--ld-window-min") { ld_snp_window_min = atoi(get_arg(i+1).c_str()); i++; }		// Max SNP distance for LD output
 		else if (in_str == "--ldhat-geno") { output_as_ldhat_unphased = true; num_outputs++;}
 		else if (in_str == "--ldhat") { output_as_ldhat_phased = true; phased_only = true; num_outputs++;} // Output as LDhat format
+		else if (in_str == "--ldhelmet") { output_as_ldhelmet = true; phased_only = true; remove_indels = true; num_outputs++; } // Output as LDhelmet format
 		else if (in_str == "--LROH") {output_LROH = true; num_outputs++;}
 		else if (in_str == "--mac") { min_mac = atoi(get_arg(i+1).c_str()); i++; }								// Minimum Site MAC
 		else if (in_str == "--maf") { min_maf = atof(get_arg(i+1).c_str()); i++; }								// Minimum Site MAF
@@ -520,6 +522,7 @@ void parameters::print_params()
 	if (temp_dir != defaults.temp_dir) LOG.printLOG("\t--temp " + temp_dir + "\n");
 	if (output_Tajima_D_bin_size != defaults.output_Tajima_D_bin_size) LOG.printLOG("\t--TajimaD " + output_log::int2str(output_Tajima_D_bin_size) + "\n");
 	if (output_as_ldhat_phased) LOG.printLOG("\t--ldhat\n");
+	if (output_as_ldhelmet) LOG.printLOG("\t--ldhelmet\n");
 	if (output_as_ldhat_unphased) LOG.printLOG("\t--ldhat-geno\n");
 
 	if (site_filter_flags_to_exclude.size() > 0)
@@ -709,7 +712,7 @@ void parameters::check_parameters()
 	if (max_alleles < min_alleles) error("Max Number of Alleles must be greater than Min Number of Alleles.", 6);
 	if (max_mean_depth < min_mean_depth) error("Max Mean Depth must be greater the Min Mean Depth.", 7);
 	if (max_genotype_depth < min_genotype_depth) error("Max Genotype Depth must be greater than Min Genotype Depth.", 9);
-	if (((output_as_ldhat_phased == true) || (output_as_ldhat_unphased)) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting LDhat format.", 11);
+	if (((output_as_ldhat_phased == true) || (output_as_ldhat_unphased) || (output_as_ldhelmet)) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting LDhat format.", 11);
 	if ((output_BEAGLE_genotype_likelihoods_GL == true) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting Beagle likelihoods.", 11);
 	if ((output_BEAGLE_genotype_likelihoods_PL == true) && (chrs_to_keep.size() != 1)) error("Require a chromosome (--chr) when outputting Beagle likelihoods.", 11);
 	if (min_kept_mask_value > 9) error("Min Mask value must be between 0 and 9.", 14);
