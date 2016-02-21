@@ -145,7 +145,8 @@ parameters::parameters(int argc, char *argv[])
 	stream_in = false;
 	stream_out = false;
 	suppress_allele_output = false;
-	temp_dir = "/tmp/";
+	temp_dir = string(getenv("TMPDIR"));
+	if(temp_dir.empty()) temp_dir = "/tmp/";
 	vcf_filename="";
 	vcf_format = false;
 	vcf_compressed = false;
