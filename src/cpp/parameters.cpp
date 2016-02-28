@@ -145,7 +145,8 @@ parameters::parameters(int argc, char *argv[])
 	stream_in = false;
 	stream_out = false;
 	suppress_allele_output = false;
-	temp_dir = string(getenv("TMPDIR"));
+	const char* raw = getenv("TMPDIR");	// Get environment variable
+        temp_dir = raw?raw:"";	// Handle case where TMPDIR is NULL.
 	if(temp_dir.empty()) temp_dir = "/tmp/";
 	vcf_filename="";
 	vcf_format = false;
