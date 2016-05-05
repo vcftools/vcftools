@@ -1,6 +1,6 @@
 package Vcf;
 
-our $VERSION = 'r953';
+our $VERSION = 'v0.1.14-12-gcdb80b8';
 
 # http://vcftools.sourceforge.net/specs.html
 # http://samtools.github.io/hts-specs/
@@ -410,6 +410,7 @@ sub _set_version
     elsif ( $$self{version} eq '4.0' ) { $reader=Vcf4_0->new(%$self); }
     elsif ( $$self{version} eq '4.1' ) { $reader=Vcf4_1->new(%$self); }
     elsif ( $$self{version} eq '4.2' ) { $reader=Vcf4_2->new(%$self); }
+    elsif ( $$self{version} eq '4.3' ) { $reader=Vcf4_3->new(%$self); }
     else 
     { 
         $self->warn(qq[The version "$$self{version}" not supported, assuming VCFv$$self{default_version}\n]);
@@ -3324,6 +3325,7 @@ sub new
         reserved => 
         {
             FILTER  => { 0=>1 },
+            cols => {CHROM=>1,POS=>1,ID=>1,REF=>1,ALT=>1,QUAL=>1,FILTER=>1,INFO=>1,FORMAT=>1},
         },
 
         handlers =>
@@ -3515,6 +3517,28 @@ sub new
     bless $self, ref($class) || $class;
 
     $$self{version} = '4.2';
+    return $self;
+}
+
+#------------------------------------------------
+# Version 4.3 specific functions
+
+=head1 VCFv4.3
+
+VCFv4.2 specific functions
+
+=cut
+
+package Vcf4_3;
+use base qw(Vcf4_1);
+
+sub new
+{
+    my ($class,@args) = @_;
+    my $self = $class->SUPER::new(@args);
+    bless $self, ref($class) || $class;
+
+    $$self{version} = '4.3';
     return $self;
 }
 

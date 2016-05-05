@@ -157,8 +157,8 @@ sub convert_file
                         error("Sanity check failed: the ref does not agree at $$x{CHROM}:$$x{POS} .. [$nref1] in .fa,  [$oref1] in .vcf\n"); 
                     }
 
-                    $$alt_to_mapref{$alt} = { ref=>$ref, alt=>$$x{REF} };
-                    $$map{$ref}{$$x{REF}} = 1;
+                    $$alt_to_mapref{$alt} = { ref=>$ref, alt=>$nref1 };
+                    $$map{$ref}{$nref1} = 1;
                     next;
                 }
                 else 
@@ -166,7 +166,6 @@ sub convert_file
                     error("Uh, FIXME: $$x{CHROM}:$$x{POS} [$type] [$len] [$ht]\n"); 
                 }
             }
-
             $$x{REF} = $vcf_out->fill_ref_alt_mapping($map);
             if ( !defined $$x{REF} ) { error("Failed on line $$x{CHROM}:$$x{POS}\n"); }
             for (my $i=0; $i<@{$$x{ALT}}; $i++)
