@@ -585,14 +585,28 @@ void entry::filter_sites_by_BED_file(const string &bed_file, bool BED_exclude)
 		if (!BED.is_open())
 			LOG.error("Could not open BED file: " + bed_file);
 
-		string chr;
+		string chr, line;
 		unsigned int N_chr=chr_to_idx.size();
-		BED.ignore(numeric_limits<streamsize>::max(), '\n');	// Ignore header
 		unsigned int N_BED_entries=0;
-		while (!BED.eof())
+		unsigned int N_BED_headers=0; 
+		unsigned int N_BED_malformed=0; 
+
+		while(getline(BED,line))
 		{
-			BED >> chr >> pos1 >> pos2;
-			BED.ignore(numeric_limits<streamsize>::max(), '\n');
+			stringstream ss(line);
+
+			pos1 = pos2 = -1;
+			ss >> chr >> pos1 >> pos2;
+
+			// skip header line(s) and/or any malformed BED lines
+			if (0 >= pos1 && 0 >= pos2) {
+				if (N_BED_entries > 0)
+					N_BED_malformed++;
+				else 
+					N_BED_headers++;
+
+				continue;
+			}
 
 			if (chr_to_idx.find(chr) == chr_to_idx.end())
 			{
@@ -607,7 +621,14 @@ void entry::filter_sites_by_BED_file(const string &bed_file, bool BED_exclude)
 		}
 		BED.close();
 
+		if (N_BED_headers > 0)
+			LOG.printLOG("\tRead " + output_log::int2str(N_BED_headers) + " BED file header lines.\n");
+		
 		LOG.printLOG("\tRead " + output_log::int2str(N_BED_entries) + " BED file entries.\n");
+
+		if (N_BED_malformed > 0)
+			LOG.printLOG("\tSkipped " + output_log::int2str(N_BED_malformed) + " malformed BED entries.\n");
+
 
 		for (unsigned int ui=0; ui<lims.size(); ui++)
 			sort(lims[ui].begin(), lims[ui].end());
