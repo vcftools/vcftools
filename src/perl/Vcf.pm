@@ -3520,6 +3520,58 @@ sub new
     return $self;
 }
 
+sub Vcf4_2::validate_alt_field
+{
+    my ($self,$values,$ref) = @_;
+
+    if ( @$values == 1 && $$values[0] eq '.' ) { return undef; }
+
+    my $ret = $self->_validate_alt_field($values,$ref);
+    if ( $ret ) { return $ret; }
+
+    my $ref_len = length($ref);
+    my $ref1 = substr($ref,0,1);
+
+    my @err;
+    my $msg = '';
+    for my $item (@$values)
+    {
+        if ( $item=~/^(.*)\[(.+)\[(.*)$/ or $item=~/^(.*)\](.+)\](.*)$/ )
+        {
+            if ( $1 ne '' && $3 ne '' ) { $msg=', two replacement strings given (expected one)'; push @err,$item; next; }
+            my $rpl;
+            if ( $1 ne '' )
+            {
+                $rpl  = $1;
+                if ( $rpl ne '.' )
+                {
+                    my $rref = substr($rpl,0,1);
+                    if ( $rref ne $ref1 ) { $msg=', the first base of the replacement string does not match the reference'; push @err,$item; next; }
+                }
+            }
+            else
+            {
+                $rpl  = $3;
+                if ( $rpl ne '.' )
+                {
+                    my $rref = substr($rpl,-1,1);
+                    if ( $rref ne $ref1 ) { $msg=', the last base of the replacement string does not match the reference'; push @err,$item; next; }
+                }
+            }
+            my $pos = $2;
+            if ( !($rpl=~/^[ACTGNacgtn]+$/) && $rpl ne '.' ) { $msg=', replacement string not valid (expected [ACTGNacgtn]+)'; push @err,$item; next; }
+            if ( !($pos=~/^\S+:\d+$/) ) { $msg=', cannot parse sequence:position'; push @err,$item; next; }
+            next;
+        }
+        if ( $item=~/^\.[ACTGNactgn]*([ACTGNactgn])$/ ) { next; }
+        elsif ( $item=~/^([ACTGNactgn])[ACTGNactgn]*\.$/ ) { next; }
+        elsif ( $item eq '*' ) { next; }
+        if ( !($item=~/^[ACTGNactgn]+$|^<[^<>\s]+>$/) ) { push @err,$item; next; }
+    }
+    if ( !@err ) { return undef; }
+    return 'Could not parse the allele(s) [' .join(',',@err). ']' . $msg;
+}
+
 #------------------------------------------------
 # Version 4.3 specific functions
 
@@ -3530,7 +3582,7 @@ VCFv4.2 specific functions
 =cut
 
 package Vcf4_3;
-use base qw(Vcf4_1);
+use base qw(Vcf4_2);
 
 sub new
 {
