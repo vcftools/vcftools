@@ -1567,7 +1567,7 @@ void variant_file::output_haplotype_r2(const parameters &params)
 				if ((r2 < min_r2) | (r2 != r2))
 					continue;
 
-			out << CHROM << "\t" << POS << "\t" << POS2 << "\t" << chr_count << "\t" << r2 << "\t" << D << "\t" << Dprime << "\t" << endl;
+			out << CHROM << "\t" << POS << "\t" << POS2 << "\t" << chr_count << "\t" << r2 << "\t" << D << "\t" << Dprime << endl;
 		}
 	}
 	tmp_file.close();
