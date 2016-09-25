@@ -1,6 +1,6 @@
 bin_PROGRAMS = vcftools
 
-vcftools_CPPFLAGS = $(ZLIB_CPPFLAGS)
+vcftools_CPPFLAGS = $(ZLIB_CFLAGS)
 vcftools_LDADD = $(ZLIB_LIBS)
 
 vcftools_SOURCES = \
