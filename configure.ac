@@ -18,9 +18,9 @@ AC_PROG_CPP
 
 # Checks for perl.
 AC_PATH_PROGS([PERL], [perl] [perl5], [false])
-if test "x$PERL" = xfalse ; then
+AS_IF([test "x$PERL" = "xfalse"],[
   AC_MSG_ERROR([Perl not found; check your \$PATH.])
-fi
+])
 
 pmdir_relative_path=`\
 $PERL -MConfig \
@@ -34,12 +34,12 @@ AC_ARG_WITH(
       [--with-pmdir=DIR],
       [install Perl modules in DIR]),
     [PMDIR=${withval}],
-    [PMDIR='${prefix}'/"$pmdir_relative_path"])
+    [PMDIR="$pmdir_relative_path"])
 
 AC_SUBST([PMDIR])
 
 # Checks for libraries.
-PKG_CHECK_MODULES(ZLIB, zlib)
+PKG_CHECK_MODULES([ZLIB], [zlib])
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h limits.h netdb.h stdint.h stdlib.h string.h sys/socket.h unistd.h])
@@ -73,9 +73,9 @@ AC_ARG_ENABLE([pca],
               [pca=${enableval}],
               [pca=no])
 
-if test "x${pca}" = "xyes" ; then
-  AC_CHECK_LIB(lapack, dgeev_)
-fi
+AS_IF([test "x$pca" = "xyes"],[
+  AC_SEARCH_LIBS([dgeev_], [lapack])
+])
 
 # Generate output.
 AC_CONFIG_FILES([Makefile

@@ -24,7 +24,7 @@ dist_bin_SCRIPTS = \
 	vcf-tstv \
 	vcf-validator
 
-pmdir = $(PMDIR)
+pmdir = $(exec_prefix)/$(PMDIR)
 
 dist_pm_DATA = \
 	FaSlice.pm \
