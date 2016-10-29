@@ -2934,6 +2934,33 @@ sub Vcf4_0::format_header_line
         }
         $value = '<' .join(',',@items). '>';
     }
+    elsif ( $tmp_rec{key} =~ /vcfProcessLog(_.+)*/)
+    {
+       my %has = ( key=>1, handler=>1, default=>1 );
+       my @items;
+       my @knownKeys = qw(InputVCF InputVCFSource InputVCFVer InputVCFParam);
+        for my $key (qw(InputVCF InputVCFSource InputVCFVer InputVCFParam), sort keys %tmp_rec)
+        {
+
+            if ( !exists($tmp_rec{$key}) || $has{$key} || !grep(/^$key$/,@knownKeys)) { next; }
+            my $value;
+            if($key eq "InputVCFParam"){
+               $value=undef;
+               foreach my $ky(keys %{$tmp_rec{$key}}){
+                       if(defined($value)){
+                               $value .= ",";
+                       }
+                       $value .= $ky."=".$tmp_rec{$key}->{$ky};
+               }
+               #$value="<".$tmp_rec{$key}.">";
+            }else{
+               $value = $tmp_rec{$key};
+            }
+            push @items, "$key=<$value>";
+            $has{$key}=1;
+        }
+        $value = '<' .join(',',@items). '>';
+    }
     else { $value = $tmp_rec{value}; }
 
     my $line = "##$tmp_rec{key}=".$value."\n";
@@ -2982,7 +3009,15 @@ sub Vcf4_0::parse_header_line
             else { $self->throw(qq[Could not parse header line: $line\nStopped at [$tmp].\n]); }
         }
 
-        if ( $tmp=~/^[^,\\"]+/ ) { $attr_value .= $&; $tmp = $'; }
+
+        if( $tmp!~/>,/ && $tmp=~/^(<)(.+,{1}.+)(>)$/) {$tmp=$'; %$attr_value = split(/[,=]/,$2);}
+        if( $tmp=~ m/^<"([^,">]+)">/) {$tmp=$'; $attr_value = $1;}
+        if ( $tmp=~/^[^,\\"]+/) { $attr_value .= $&; $tmp = $';
+          if($attr_value =~ m/^<.+>$/){
+            $attr_value =~ s/^<//; $attr_value =~ s/>$//;
+          }
+        }
+
         if ( $tmp=~/^\\\\/ ) { $attr_value .= '\\\\'; $tmp = $'; next; }
         if ( $tmp=~/^\\"/ ) { $attr_value .= '\\"'; $tmp = $'; next; }
         if ( $tmp eq '' or ($tmp=~/^,/ && !$quoted) or $tmp=~/^"/ )
@@ -2995,6 +3030,10 @@ sub Vcf4_0::parse_header_line
                 $attr_value =~ s/^\s+//;
                 $attr_value =~ s/\s+$//;
             }
+            if($tmp =~ m/^(,([^=<].)+>),/){
+              $quoted = 1;
+              $attr_value.= $1;
+            }
             $$rec{$attr_key} = $attr_value;
             $tmp = $';
             if ( $quoted && $tmp=~/^,/ ) { $tmp = $'; }
@@ -3005,6 +3044,7 @@ sub Vcf4_0::parse_header_line
         $self->throw(qq[Could not parse header line: $line\nStopped at [$tmp].\n]);
     }
 
+    if( $key =~ m/vcfProcessLog/) {return $rec;}
     if ( $key eq 'INFO' or $key eq 'FILTER' or $key eq 'FORMAT' )
     {
         if ( $key ne 'PEDIGREE' && !exists($$rec{ID}) ) { $self->throw("Missing the ID tag in $line\n"); }
