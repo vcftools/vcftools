@@ -1,0 +1,590 @@
+#!/usr/bin/env perl
+
+# Authors: gevorgyana@MedImmune.com, slidelt@medimmune.com
+
+use strict;
+use warnings;
+#no warnings "experimental::smartmatch";
+use Carp;
+use Vcf;
+
+
+my $opts = parse_params();
+do_haplotypes($opts);
+
+exit;
+
+#--------------------------------
+
+sub error
+{
+    my (@msg) = @_;
+    if ( scalar @msg )
+    {
+        croak @msg;
+    }
+    die
+        "Usage: cat ref.fa | vcf-consensus [OPTIONS] in.vcf.gz \n",
+        "Options:\n",
+        "   -h, -?, --help                   This help message.\n",
+        "   -H, --haplotypes [<int>]         Apply variants for the given haplotypes (1,2).  If not given, both haplotypes are applied.\n",
+        "   -g, --gff filename               Reposition the features in the given gff file with indels for each haplotypes\n",
+        "   -s, --samples [<name>]           Apply variants for the given samples. If not given, all variants are applied\n",
+        "   -o, --output [<name>]            Write output files to the given directory. If not given, set to './'\n",
+        "   -g, --gff [<name>]               GFF input file (optional).",
+        "Examples:\n",
+        "   # Get the consensus for one region. The fasta header lines are then expected\n",
+        "   # in the form \">chr:from-to\".\n",
+        "   samtools faidx ref.fa 8:11870-11890 | vcf-consensus in.vcf.gz > out.fa\n",
+        "\n";
+}
+
+
+sub parse_params
+{
+    my $opts = { };
+    while (my $arg=shift(@ARGV))
+    {
+        if ( $arg eq '-?' || $arg eq '-h' || $arg eq '--help' ) { error(); }
+        if ( $arg eq '-s' || $arg eq '--samples' ) { $$opts{samples} = shift(@ARGV); next; }
+        if ( $arg eq '-H' || $arg eq '--haplotypes' ) { $$opts{haplotypes} = shift(@ARGV); next; }
+        if ( $arg eq '-o' || $arg eq '--output' ) { $$opts{output} = shift(@ARGV); next; }
+        if ( $arg eq '-g' || $arg eq '--gff' ) { $$opts{gff_file} = shift(@ARGV); next; }
+        if ( -e $arg && !exists($$opts{vcf_file}) ) { $$opts{vcf_file}=$arg; next; }
+        error("Unknown parameter \"$arg\". Run -h for help.\n");
+    }
+    return $opts;
+}
+
+
+sub any (&@) {
+    my ($f, $records) = @_;
+    foreach ( @$records ) {
+        return 1 if $f->();
+    }
+    return 0;
+}
+
+sub all (&@) {
+    my ($f, $records) = @_;
+    foreach ( @$records ) {
+        return 0 unless $f->();
+    }
+    return 1;
+}
+
+sub do_haplotypes
+{
+    my ($opts) = @_;
+    
+    my $vcf = Vcf->new(file=>$$opts{vcf_file});
+    $vcf->parse_header;
+    parse_options( $opts, $vcf );
+    my $records = [];
+    open_records($opts, $records);
+    my $chrs = $vcf->get_chromosomes();
+    my %chrs = map { $_=>0 } @$chrs;
+    my $gff;
+    if ($$opts{gff_file}){
+        $gff = Gff->new(file=>$$opts{gff_file});
+        my $lines = $gff->read_header();
+        $_->print_gff ( @$lines ) for @$records;
+    }
+
+    my ($chr,$vcf_pos,$warned,$vcf_line,$case_known);
+    while (my $line=<STDIN>)
+    {
+        next if ( $line =~ /\A#/ );
+        
+        if ( $line=~/^>([^:\s]+)/ ) 
+        {
+            $_->flush_fa_buffer(0) for @$records;
+            $chr = $1;
+            my $rest = $';
+            my $fa_pos = ($rest=~/^:(\d+)-(\d+)$/) ? $1 : 1;
+            if ( exists($chrs{$chr}) ) { $chrs{$chr}=1; }
+            my $region = $fa_pos > 1 ? "$chr:$fa_pos" : $chr;
+            $vcf->open(region=>$region);
+            $_->do_header($fa_pos, ">$chr\n") for @$records;
+            $gff->open($region) if defined $gff;
+            next;
+        }
+
+        chomp($line);
+        unless ( defined $case_known )
+        {
+            if ( uc($line) eq $line ) { $case_known = 'u'; }
+            elsif ( lc($line) eq $line ) { $case_known = 'l'; }
+            else { $case_known = 'u'; }
+        }
+        $_->add_line($line) for @$records;      
+        read_features($gff, $records) if defined $gff; 
+
+        while ( defined($vcf_line = $vcf->next_data_array()) )
+        {
+            #can the beginning of the buffer be printed?
+            if ( all {$_->buf_end_pos() <= $$vcf_line[1]} $records ){
+                $vcf->_unread_line($vcf_line);
+                flush ($records, 60);
+                last;
+            }
+
+            # is the buffer long enough?
+            if ( any {$_->buf_end_pos() < $$vcf_line[1]+length($$vcf_line[3]) } $records )
+            {
+                $vcf->_unread_line($vcf_line);
+                last;
+            }
+            apply_variants($vcf,$records,$vcf_line,$case_known)
+        }
+
+        flush ($records, 60) if ( !defined $vcf_line );
+    }
+    flush ($records, 0);
+
+    for my $chr (keys %chrs)
+    {
+        if ( !$chrs{$chr} ) { warn("The sequence \"$chr\" not found in the fasta file.\n"); }
+    }
+}
+
+sub flush
+{
+    my ( $records, $len ) = @_;
+    for ( @$records ) { 
+        $_->flush_fa_buffer($len); 
+        $_->flush_features() if $$_{gff}; 
+    };
+}
+
+sub parse_options {
+    my ( $opts, $vcf ) = @_;
+
+    my @samples;
+    if ( exists( $$opts{samples} ) ) {
+        @samples = split( ",\\s*", $$opts{samples} );
+        foreach my $sample (@samples) {
+            if ( !exists( $$vcf{has_column}{$sample} ) ) {
+                error("No such sample: $sample");
+            }
+            push @{ $$opts{sample_col} }, $$vcf{has_column}{$sample};
+        }
+    }
+    else {
+        @samples = splice @{$$vcf{columns}}, 9;
+        my @columns = @{$$vcf{has_column}}{@samples};
+        $$opts{sample_col} = \@columns;
+    }
+    $$opts{samples} = \@samples;
+
+    my @haplotypes;
+    my @allowed = qw/1 2/;
+    if ( exists( $$opts{haplotypes} )) {
+        @haplotypes = split( ",\\s*", $$opts{haplotypes} );
+        for my $h (@haplotypes){
+            unless (($h ~~ @allowed)){
+                error("Illegal haplotype number: \"$h\". Only 1 and 2 are allowed.");
+            }
+        }
+    }
+    @haplotypes = @allowed unless @haplotypes;
+    $${opts{haplotypes}} = \@haplotypes;
+    
+    $$opts{output} = './' unless exists $$opts{output};
+}
+
+sub open_records
+{
+    my ( $opts, $records ) = @_;
+    foreach my $sample ( @{ $$opts{samples} } ) {
+        my $sample_col = shift @{ $$opts{sample_col} };
+        foreach my $haplotype ( @{ $$opts{haplotypes} } ) {
+            my $name = $sample."_".$haplotype;
+            my $record = Record->new(
+                name => $name, 
+                hap => $haplotype,
+                col => $sample_col,
+                fastafile => "$$opts{output}/$name.fa",
+                gff => $$opts{gff_file}
+            );
+            push @$records, $record; 
+        }
+    }
+}
+
+sub apply_variants
+{
+    my ($vcf, $records, $vline, $case_known) = @_;
+    if ( $$vline[4] eq '.' ) { return; }
+    my $igt = $vcf->get_tag_index($$vline[8],'GT',':');
+    if ( $igt==-1 ) { return; }
+
+    for my $record  ( @$records ) {
+        
+        my $hap = $$record{hap};
+        my $alt;
+
+        my $gt = $vcf->get_field($$vline[$$record{col}-1],$igt);
+        my @als = $vcf->split_gt($gt);
+
+        # Note: we are not checking the phase or phase blocks, assuming the VCF is perfect
+        if ( $hap <= @als && $als[$hap-1] ne '0' ) 
+        { 
+            $alt = $vcf->get_field($$vline[4],$als[$hap-1]-1,','); 
+        }
+
+        next if ( !defined $alt );
+
+        if ( $case_known eq 'l' ) { $alt = lc($alt); }
+    
+        $record->apply_variant($vline, $alt);
+    }
+}
+
+sub read_features
+{
+    my ($gff, $records) = @_;
+    while ( my $feature = $gff->next_feature() ){
+        if ( all { $_->buf_end_pos() <= $$feature{start} } $records ) {
+            $gff->unread($feature);
+            last;
+        }
+        $_->add_feature($feature) for @$records;
+    }
+}
+
+package Record;
+
+    use List::Util qw (first max);
+    
+    sub new
+    {
+        my ($class,@args) = @_;
+        my $self = {@args};
+        bless $self, ref($class) || $class;
+    
+        open my $fh, '>', $$self{fastafile} or die "Cannot open $$self{fastafile}: $!";
+        $$self{fh} = $fh;
+    
+        if ($$self{gff}){
+            (my $gff_file = $$self{fastafile}) =~ s/\.fa$/.gff/;
+            open my $gh, '>', $gff_file or die "Cannot open $gff_file: $!";
+            $$self{gh} = $gh;
+            $$self{features} = [];
+        }
+        return $self;
+    }
+    
+    sub flush_fa_buffer
+    {
+        my ($self, $len) = @_;
+        while ( $$self{fa_len} && $$self{fa_len}>=60 )
+        {
+            $self->print_fasta(substr($$self{fa_buf},0,60,''), "\n");
+            $$self{fa_len} -= 60;
+            $$self{fa_pos} += 60 - $$self{fa_idx};
+            $$self{fa_idx}  = 0;
+        }
+        if ( $len or !$$self{fa_len} ) { return; }
+        $self->print_fasta($$self{fa_buf}, "\n");
+        $$self{fa_pos} += $$self{fa_len}-$$self{fa_idx};
+        $$self{fa_len} = 0;
+        $$self{fa_buf} = '';
+        $$self{fa_idx} = 0;
+    }
+    
+    sub do_header
+    {
+        my ($self, $fa_pos, $header) = @_;
+        
+        $$self{fa_buf} = '';
+        $$self{fa_pos} = $fa_pos;
+        $$self{fa_idx} = 0;
+        $$self{fa_frz} = 0;
+        $self->print_fasta($header);
+    
+        $$self{gff_pos} = $fa_pos;
+        $$self{full_fa_len} = $fa_pos;
+        $$self{gff_indel} = 0;
+        $$self{gff_start} = $fa_pos - 1;
+    }
+    
+    sub add_line
+    {
+        my ($self, $line) = @_;
+        $$self{fa_buf} .= $line;
+        my $len = length($line);
+        $$self{fa_len} += $len;
+    
+        if ( $$self{gff} ){
+            $$self{full_fa_len} += $len;
+            $#{$$self{features}} = max ( $#{$$self{features}}, $$self{full_fa_len} - 1 - $$self{gff_pos} );
+        }
+    }
+    
+    sub buf_end_pos
+    {
+        my ($self) = @_;
+        return $$self{fa_pos} + $$self{fa_len} - $$self{fa_idx};
+    }
+    
+    sub apply_variant
+    {
+        my ($self, $vline, $alt) = @_;
+        
+        if ( $alt =~ /<.*>/ ){
+            $self->print_warning("Imprecise structural variant at $$vline[1]: $alt, cannot apply.\n");
+            return;
+        }
+    
+        if ( $$vline[1] <= $$self{fa_frz} ) {
+            $self->print_warning("Conflicting variants at (or near) $$vline[0]:$$vline[1], cannot apply both.\n");
+            return;
+        }
+    
+        my $pos = $$vline[1] - $$self{fa_pos} + $$self{fa_idx};
+
+        if ( $pos<0 or $pos>=$$self{fa_len} ) { die("FIXME: $$vline[0]:$$vline[1] .. $$self{fa_pos},$pos,$$self{fa_len},$$self{fa_frz}\n"); }
+    
+        # Sanity check
+        my $ref_len = length($$vline[3]);
+        if ( $$vline[3] ne uc(substr($$self{fa_buf},$pos,$ref_len)) ) 
+        { 
+            die (sprintf "The fasta sequence does not match the REF at $$vline[0]:$$vline[1]. %s(%s) in .fa, %s in .vcf, frz=%d\n", 
+                substr($$self{fa_buf},$pos,$ref_len),
+                substr($$self{fa_buf},$pos+1,$ref_len+5),
+                $$vline[3], $$self{fa_frz}?$$self{fa_frz}:0);
+            
+        }
+        
+        my $alt_len = length($alt);
+        
+        if ( $$self{gff} && $alt_len != $ref_len ){
+            $self->apply_indel_to_features($$vline[1], $ref_len, $alt_len);
+        }
+    
+        substr($$self{fa_buf},$pos,$ref_len,$alt);
+        $$self{fa_len} += $alt_len - $ref_len;
+        $$self{fa_pos} += $ref_len;     # position with respect to the original reference sequence
+        $$self{fa_idx} += $alt_len;     # position in the modified sequence
+        $$self{fa_frz}  = $$vline[1] + $ref_len - 1;      # freeze changes until this position
+    }
+    
+    sub print_warning
+    {
+        my ($self, @args) = @_;
+        print STDERR $$self{name}, "\t", @args;
+    }
+    
+    sub print_fasta
+    {
+        my ($self, @args) = @_;
+        my $fh = $$self{fh};
+        print $fh @args;
+    }
+    
+    sub add_feature
+    {
+        my ( $self, $feature ) = @_;
+        my $startRef = {
+            type => 's',
+            feature => $feature
+        };
+        my $endRef = {
+            type => 'e',
+            feature => $feature
+        };
+        my $indel = - $$self{gff_pos} + $$self{gff_indel};
+        push @{$$self{features}[$$feature{start} + $indel]}, $startRef;
+        push @{$$self{features}[$$feature{end} + $indel]}, $endRef;
+    }
+    
+    sub apply_indel_to_features
+    {
+        my ( $self, $vpos, $ref_len, $alt_len ) = @_;
+        my $pos = $vpos - $$self{gff_pos} + $$self{gff_indel};
+        my $l = $alt_len - $ref_len;
+        if ( $l < 0 ) {
+            $self->apply_deletion_to_features($pos + $alt_len, $l);
+        } else {
+            $self->apply_insertion_to_features($pos + $ref_len, $l);
+        }
+        $$self{full_fa_len} += $l;
+        $$self{gff_indel} += $l;
+    }
+    
+    sub remove_feature {
+        my ( $self, $pos, $featRef ) = @_;
+
+        my $index = first { $$self{features}[$pos][$_] == $featRef } 0 .. $#{ $$self{features}[$pos] };
+
+        # Remove the position from the array
+        splice( @{ $$self{features}[$pos] }, $index, 1 );
+
+        # No more features here so undef it    
+        undef $$self{features}[$pos] unless $$self{features}[$pos];
+    }
+    
+    sub apply_deletion_to_features 
+    {
+        my ( $self, $s, $l ) = @_;
+        my $e = $s - $l - 1;
+        my %olFeatRefs = ();
+        for ( my $i = $s ; $i <= $e ; $i++ ) {
+            next unless defined $$self{features}[$i];
+            while ( my $featRef = shift @{ $$self{features}[$i] } ) {
+                my $startFeatRef = $olFeatRefs{ $$featRef{feature} };
+                if ( defined $startFeatRef) {
+                    #Overlaps whole feature - delete it
+                    $self->remove_feature( $e + 1, $startFeatRef );
+                    $self->print_warning( 
+                        "Feature deleted: ",
+                        "$$startFeatRef{feature}{feature} ",
+                        "($$startFeatRef{feature}{start}-$$startFeatRef{feature}{end})",
+                        "$$startFeatRef{feature}{rest}\n" 
+                    );
+                }
+                elsif ( $$featRef{type} eq 's' ) {
+                    push @{$$self{features}[$e + 1]}, $featRef;
+                    $olFeatRefs{ $$featRef{feature} } = $featRef;
+                }
+                elsif ( $$featRef{type} eq 'e' ) {
+                    push @{$$self{features}[$s - 1]}, $featRef;
+                }
+            }
+        }
+        splice( @{$$self{features}}, $s, $e - $s + 1 );
+    }
+    
+    sub apply_insertion_to_features
+    {
+        my ( $self, $s, $l ) = @_;
+        my @repl;
+        $#repl = $l - 1;
+        splice( @{$$self{features}}, $s, 0, @repl );
+    }
+    
+    sub flush_features
+    {
+        my ($self, @args) = @_;
+    
+        my $end = $self->buf_end_pos() + $$self{gff_indel} - $$self{gff_pos};
+        
+        my %ranges = ();
+        for my $i ( 0..$end ) {
+            my $featureRefs = $$self{features}[$i];
+            next unless $featureRefs;
+            for my $featureRef ( @{$featureRefs} ){
+                my ( $type, $feature ) = @{$featureRef}{ 'type', 'feature' };
+                if ($type eq 's'){
+                    @{$ranges{$feature}}{$type, 'feature'} = ($i, $feature);
+                } elsif ( exists $ranges{$feature} )  {
+                    #type is 'e'
+                    $ranges{$feature}{$type} = $i;
+                } 
+            }
+        }
+    
+        #sort by start and end (if existing) positions
+        my @sorted = sort { 
+            my $c = $$a{s} <=> $$b{s};
+            if ( ! $c  && exists $$a{e} && exists $$b{e} ){
+                $c = $$a{e} <=> $$b{e};
+            } 
+            $c;
+        } values %ranges;
+    
+        #first range whose end position has not been read yet 
+        my $first_unflushable = first { ! defined $$_{e}  } @sorted;
+        
+        #its index, or end of buffer if all ranges have end positions 
+        my $first_unflushable_idx = defined $first_unflushable ? $$first_unflushable{s} : $end;
+        
+        #flush the features that can be flushed, sorted by start and end
+        $self->print_feature($_) for grep { 
+            $$_{s} < $first_unflushable_idx 
+        } @sorted;
+    
+        #remove the features flushed
+        splice @{ $$self{features} }, 0, $first_unflushable_idx;
+
+        #store the offset of the feature list
+        $$self{gff_pos} += $first_unflushable_idx;
+    }
+    
+    sub print_feature 
+    { 
+        my ( $self, $range ) = @_;
+        my ( $s, $e, $feature ) = @{$range}{ qw/ s e feature / };
+        $s += $$self{gff_pos} - $$self{gff_start};
+        $e += $$self{gff_pos} - $$self{gff_start};
+        my $line = join "\t", (@{$feature}{ qw/ seqname source feature / }, $s, $e, $$feature{rest});
+        $self->print_gff($line, "\n");
+    }
+    
+    sub print_gff
+    {
+        my ($self, @args) = @_;
+        my $gh = $$self{gh};
+        print $gh @args;
+    }
+
+
+
+package Gff; 
+
+    sub new
+    {
+        my ($class,@args) = @_;
+        my $self = {@args};
+        bless $self, ref($class) || $class;        
+        $$self{buffer} = [];
+        $$self{fieldnames} = [ qw/ seqname source feature start end rest / ];
+        return $self;
+    }
+    
+    sub open : method
+    {
+        my ($self, $region) = @_;
+        $self->close();
+        open my $fh, "tabix $$self{file} $region |" 
+            or die "Cannot read tabix header from $$self{file}: $!";
+        $$self{fh} = $fh;
+    }
+    
+    sub next_feature
+    {
+        my ($self) = @_;
+        return shift(@{$$self{buffer}}) if @{$$self{buffer}};
+        my $line = readline($$self{fh}); 
+        return undef unless $line;
+        chomp ($line);
+        my %feature;
+        @feature{@{$$self{fieldnames}}} = split /\t/, $line, @{$$self{fieldnames}};
+        return \%feature;
+    }
+    
+    sub unread
+    {
+        my ($self,$feature) = @_;
+        unshift @{$$self{buffer}}, $feature;
+    }
+    
+    sub close : method
+    {
+        my ($self) = @_;
+        close delete $$self{fh} if $$self{fh};
+    }
+    
+    sub read_header
+    {
+        my ($self) = @_;
+        open TABIX, "tabix -h $$self{file} '' |" 
+            or die "Cannot read tabix header from $$self{file}: $!";
+        my @lines = <TABIX>;
+        close TABIX;
+        return \@lines;
+    }
+
+
+
