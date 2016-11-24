@@ -21,7 +21,6 @@ package FaSlice;
 use strict;
 use warnings;
 use Carp;
-use String::ShellQuote qw( shell_quote );
 
 =head2 new
 
@@ -122,7 +121,7 @@ sub read_chunk
         return;
     }
     my $to = $pos + $$self{size};
-    my $cmd = sprintf("samtools faidx %s %s", shell_quote($$self{file}), shell_quote("$chr:$pos-$to"));
+    my $cmd = "samtools faidx \Q$$self{file}\E \Q$chr:$pos-$to\E";
     my @out = $self->cmd($cmd) or $self->throw("$cmd: $!");
     my $line = shift(@out);
     if ( !($line=~/^>\Q$chr\E:(\d+)-(\d+)/) ) { $self->throw("Could not parse: $line"); }
