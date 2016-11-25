@@ -105,6 +105,21 @@ bool entry::is_diploid() const
 	return true;
 }
 
+bool entry::is_haploid() const
+{
+	for (unsigned int ui=0; ui<N_indv; ui++)
+	{
+		if ((include_indv[ui] == true) && (include_genotype[ui] == true))
+		{
+			assert(parsed_GT[ui] == true);
+			if (ploidy[ui] != 1)
+				return false;
+		}
+	}
+	return true;
+}
+
+
 void entry::get_allele(int allele_num, string &out) const
 {
 	assert(parsed_ALT == true);
