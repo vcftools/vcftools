@@ -3548,13 +3548,13 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 		unsigned int N_alleles = e->get_N_alleles();
 		if (ploidy == 2 && ! e->is_diploid())
 		{
-			LOG.one_off_warning("\twindowPi: Only using fully diploid sites.");
+			LOG.one_off_warning("\tFst: Only using fully diploid sites.");
 			continue;
 		}
 
 		if (ploidy == 1 && ! e->is_haploid())
 		{
-			LOG.one_off_warning("\twindowPi: Only using fully haploid sites.");
+			LOG.one_off_warning("\tFst: Only using fully haploid sites.");
 			continue;
 		}
 
@@ -3583,7 +3583,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 				hbar[j] += N_het[j];
 			}
 			for (unsigned int j=0; j<N_alleles; j++)
-				p[i][j] /= (ploidy*n[i]);	// diploid
+				p[i][j] /= (ploidy*n[i]);
 
 			sum_nsqr += (n[i] * n[i]);
 		}
@@ -3592,7 +3592,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 
 		for (unsigned int j=0; j<N_alleles; j++)
 		{
-			pbar[j] /= (n_sum*ploidy); //diploid
+			pbar[j] /= (n_sum*ploidy);
 			hbar[j] /= n_sum;
 		}
 
@@ -3928,13 +3928,13 @@ void variant_file::output_per_site_nucleotide_diversity(const parameters &params
 
 		if (ploidy == 2 && ! e->is_diploid())
 		{
-			LOG.one_off_warning("\twindowPi: Only using fully diploid sites.");
+			LOG.one_off_warning("\tsitePi: Only using fully diploid sites.");
 			continue;
 		}
 
 		if (ploidy == 1 && ! e->is_haploid())
 		{
-			LOG.one_off_warning("\twindowPi: Only using fully haploid sites.");
+			LOG.one_off_warning("\tsitePi: Only using fully haploid sites.");
 			continue;
 		}
 
