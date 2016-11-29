@@ -121,10 +121,10 @@ sub read_chunk
         return;
     }
     my $to = $pos + $$self{size};
-    my $cmd = "samtools faidx $$self{file} $chr:$pos-$to";
+    my $cmd = "samtools faidx \Q$$self{file}\E \Q$chr:$pos-$to\E";
     my @out = $self->cmd($cmd) or $self->throw("$cmd: $!");
     my $line = shift(@out);
-    if ( !($line=~/^>$chr:(\d+)-(\d+)/) ) { $self->throw("Could not parse: $line"); }
+    if ( !($line=~/^>\Q$chr\E:(\d+)-(\d+)/) ) { $self->throw("Could not parse: $line"); }
     $$self{from} = $1;
     my $chunk = '';
     while ($line=shift(@out))
