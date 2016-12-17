@@ -415,7 +415,7 @@ void parameters::print_params()
 	if (indv_exclude_files.size() != 0)
 	{
 		for (unsigned int ui=0; ui<indv_exclude_files.size(); ui++)
-			LOG.printLOG("\t--exclude " + indv_exclude_files[ui] + "\n");
+			LOG.printLOG("\t--remove " + indv_exclude_files[ui] + "\n");
 	}
 	if (indv_keep_files.size() != 0)
 	{
