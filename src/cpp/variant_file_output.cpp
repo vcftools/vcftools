@@ -4287,8 +4287,10 @@ void variant_file::output_removed_sites(const parameters &params)
 		N_entries += e->apply_filters(params);
 
 		if(e->passed_filters)
+		{
+			N_kept_entries++;
 			continue;
-		N_kept_entries++;
+		}
 
 		e->parse_basic_entry();
 		POS = e->get_POS();
