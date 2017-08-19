@@ -74,7 +74,7 @@ AC_ARG_ENABLE([pca],
               [pca=no])
 
 AS_IF([test "x$pca" = "xyes"],[
-  AC_SEARCH_LIBS([dgeev_], [lapack])
+  AC_CHECK_LIB([lapack], [dgeev_])
 ])
 
 # Generate output.
