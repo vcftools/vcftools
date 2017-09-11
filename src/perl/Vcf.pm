@@ -2351,7 +2351,7 @@ sub validate_info_field
     my $nr = -1;
     if ( $$self{version}>4.0 )
     {
-        if ( $$alts[0] eq '.' ) { $ng=1; $na=1; }
+        if ( $$alts[0] eq '.' ) { $ng=1; $na=1; $nr = 1; }
         else
         {
             $na = @$alts;
