@@ -77,4 +77,4 @@ If you make use of VCFtools in your research, we would appreciate a citation of 
 > **The Variant Call Format and VCFtools**, Petr Danecek, Adam Auton, Goncalo Abecasis, Cornelis
 > A. Albers, Eric Banks, Mark A. DePristo, Robert Handsaker, Gerton Lunter, Gabor Marth, Stephen
 > T. Sherry, Gilean McVean, Richard Durbin and 1000 Genomes Project Analysis Group,
-> **Bioinformatics**, 2011 http://dx.doi.org/10.1093/bioinformatics/btr330
+> **Bioinformatics**, 2011 https://doi.org/10.1093/bioinformatics/btr330
