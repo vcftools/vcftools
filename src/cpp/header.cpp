@@ -110,7 +110,6 @@ int header::add_INFO_descriptor(const string &in, int index)
 	I.Field = "INFO";
 	vector<string> tokens;
 	tokenize(details, ',', tokens);
-
 	if (tokens.size() < 4)
 		LOG.error("Expected at least 4 parts in INFO definition: " + in);
 
@@ -206,7 +205,6 @@ int header::add_FORMAT_descriptor(const string &in, int index)
 	tokenize(details, ',', tokens);
 	Field_description I;
 	I.Field = "FORMAT";
-
 	if (tokens.size() < 4)
 		LOG.error("Expected at least 4 parts in FORMAT definition: " + in);
 
@@ -306,6 +304,8 @@ void header::add_CONTIG_descriptor(const string &in, int index)
 	for (unsigned int ui=0; ui<tokens.size(); ui++)
 	{
 		tokenize(tokens[ui], '=', entry);
+		if (entry.size() < 2)
+			LOG.error("Expected at least 2 parts in CONTIG entry: " + in);
 		if (entry[0] == "ID")
 		{
 			I.ID = entry[1];
@@ -345,6 +345,8 @@ int header::add_FILTER_descriptor(const string &in, int index)
 	for (unsigned int ui=0; ui<tokens.size(); ui++)
 	{
 		tokenize(tokens[ui], '=', entry);
+		if (entry.size() < 2)
+			LOG.error("Expected at least 2 parts in FORMAT entry: " + in);
 		if (entry[0] == "ID") I.ID = entry[1];
 		else if (entry[0] == "Description")
 		{
