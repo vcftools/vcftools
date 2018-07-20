@@ -118,7 +118,10 @@ int header::add_INFO_descriptor(const string &in, int index)
 	{
 		tokenize(tokens[ui], '=', entry);
 		if (entry.size() < 2)
-			LOG.error("Expected at least 2 parts in INFO entry: " + in);
+		{
+			LOG.warning("Warning: Expected at least 2 parts in INFO entry: " + in);
+			continue;
+		}
 		if (entry[0] == "ID") I.ID = entry[1];
 		else if (entry[0] == "Number")
 		{
@@ -213,7 +216,10 @@ int header::add_FORMAT_descriptor(const string &in, int index)
 	{
 		tokenize(tokens[ui], '=', entry);
 		if (entry.size() < 2)
-			LOG.error("Expected at least 2 parts in FORMAT entry: " + in);
+		{
+			LOG.warning("Warning: Expected at least 2 parts in FORMAT entry: " + in);
+			continue;
+		}
 		if (entry[0] == "ID") I.ID = entry[1];
 		else if (entry[0] == "Number")
 		{
@@ -305,7 +311,10 @@ void header::add_CONTIG_descriptor(const string &in, int index)
 	{
 		tokenize(tokens[ui], '=', entry);
 		if (entry.size() < 2)
-			LOG.error("Expected at least 2 parts in CONTIG entry: " + in);
+		{
+			LOG.warning("Warning: Expected at least 2 parts in CONTIG entry: " + in);
+			continue;
+		}
 		if (entry[0] == "ID")
 		{
 			I.ID = entry[1];
@@ -346,7 +355,10 @@ int header::add_FILTER_descriptor(const string &in, int index)
 	{
 		tokenize(tokens[ui], '=', entry);
 		if (entry.size() < 2)
-			LOG.error("Expected at least 2 parts in FORMAT entry: " + in);
+		{
+			LOG.warning("Warning: Expected at least 2 parts in FORMAT entry: " + in);
+			continue;
+		}
 		if (entry[0] == "ID") I.ID = entry[1];
 		else if (entry[0] == "Description")
 		{
