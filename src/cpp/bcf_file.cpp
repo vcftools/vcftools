@@ -64,7 +64,7 @@ void bcf_file::open()
 	{
 		file_tmp.open(filename.c_str(), ios::in);
 		if (!file_tmp.is_open())
-			LOG.error("Could not open VCF file: " + filename, 0);
+			LOG.error("Could not open VCF file: " + filename);
 		file_in = &file_tmp;
 	}
 }
@@ -80,7 +80,7 @@ void bcf_file::open_gz()
 		gzfile_in = gzopen(filename.c_str(), "rb");
 
 	if (gzfile_in == NULL)
-		LOG.error("Could not open BGZF BCF file: " + filename, 0);
+		LOG.error("Could not open BGZF BCF file: " + filename);
 	#ifdef ZLIB_VERNUM
 		string tmp(ZLIB_VERSION);
 		LOG.printLOG("Using zlib version: " + tmp + "\n");
