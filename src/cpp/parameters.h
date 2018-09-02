@@ -193,7 +193,7 @@ public:
 
 private:
 	void check_parameters();
-	static void error(string err_msg, int code);
+	static void error(string err_msg, int code=1);
 
 	vector<string> argv;
 
