@@ -274,7 +274,7 @@ void vcf_entry::parse_FORMAT()
 		else if ( (type == Character) or (type == String) )
 			make_typed_string_vector(tmp_vector, tmp_split, number );
 		else
-			LOG.error("Invalid type in FORMAT definition", 0);
+			LOG.error("Invalid type in FORMAT definition");
 
 		position = 0;
 		get_type(&position, tmp_vector, type, size);
@@ -388,10 +388,10 @@ void vcf_entry::print_bcf(BGZF* out, const set<string> &INFO_to_keep, bool keep_
 
 	tmp_string = get_CHROM();
 	if (tmp_string == "." or tmp_string == " " or tmp_string == "")
-		LOG.error("CHROM value must be defined for all entries.",0);
+		LOG.error("CHROM value must be defined for all entries.");
 
 	if (entry_header.CONTIG_reverse_map.find(tmp_string) == entry_header.CONTIG_reverse_map.end() )
-		LOG.error("CHROM value " + tmp_string + " is not defined on contig dictionary.",0);
+		LOG.error("CHROM value " + tmp_string + " is not defined on contig dictionary.");
 
 	int32_t chrom = (int32_t)entry_header.CONTIG_reverse_map[tmp_string];
 	memcpy(&out_vector[vector_pos], &chrom, sizeof(chrom));
@@ -471,7 +471,7 @@ void vcf_entry::print_bcf(BGZF* out, const set<string> &INFO_to_keep, bool keep_
 		else if (map_type == Flag)
 			make_typed_int(tmp_vector, 1, true );
 		else
-			LOG.error("Invalid type in INFO definition", 0);
+			LOG.error("Invalid type in INFO definition");
 
 		out_vector.insert(out_vector.end(), tmp_vector.begin(), tmp_vector.end());
 	}
