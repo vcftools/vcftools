@@ -117,7 +117,7 @@ void bcf_file::get_entry(vector<char> &out)
 	ret = read(&size_int[0], 2, sizeof(uint32_t) );
 	read_size = size_int[0] + size_int[1];
 
-	if (ret)
+	if (ret && (read_size > 0))
 	{
 		out.resize(read_size+2*sizeof(uint32_t));
 		memcpy(&out[0], size_int, 2*sizeof(uint32_t));
