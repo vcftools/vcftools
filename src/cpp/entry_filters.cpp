@@ -139,7 +139,7 @@ void entry::filter_sites_to_keep(const set<string> &snps_to_keep, const string &
 
 		if (!in.is_open())
 		{
-			LOG.error("Could not open SNPs to Keep file" + snps_to_keep_file, 0);
+			LOG.error("Could not open SNPs to Keep file" + snps_to_keep_file);
 		}
 		while (!in.eof())
 		{
@@ -171,7 +171,7 @@ void entry::filter_sites_to_exclude(const string &snps_to_exclude_file)
 		string tmp;
 		if (!in.is_open())
 		{
-			LOG.error("Could not open SNPs to Exclude file" + snps_to_exclude_file, 0);
+			LOG.error("Could not open SNPs to Exclude file" + snps_to_exclude_file);
 		}
 		while (!in.eof())
 		{
