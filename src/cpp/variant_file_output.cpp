@@ -2291,7 +2291,7 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 	BED.close();
 
 	if (nlist == 0)
-		LOG.error("No sites found in positions file.\n",0);
+		LOG.error("No sites found in positions file.\n");
 
 	LOG.printLOG("\tRead in "+header::int2str(nlist)+" site(s) for LD analysis.\n");
 
@@ -2533,7 +2533,7 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 	BED.close();
 
 	if (nlist == 0)
-		LOG.error("No sites found in positions file.\n",0);
+		LOG.error("No sites found in positions file.\n");
 
 	LOG.printLOG("\tRead in "+header::int2str(nlist)+" site(s) for LD analysis.\n");
 
