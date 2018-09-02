@@ -244,7 +244,7 @@ void bcf_entry::parse_genotype_entry(unsigned int indv, bool GT, bool GQ, bool D
 		else if ((int)ui == GQ_idx)
 		{
 			if (size>1)
-				LOG.error("Error: Only expect single value for QUALITY.\n");
+				LOG.error("Only expect single value for QUALITY.\n");
 
 			float tmp;
 			if (type==5)
@@ -265,14 +265,14 @@ void bcf_entry::parse_genotype_entry(unsigned int indv, bool GT, bool GQ, bool D
 				tmp = (float)tmp2;
 			}
 			else
-				LOG.error("Error: Invalid type for QUALITY.\n");
+				LOG.error("Invalid type for QUALITY.\n");
 
 			set_indv_GQUALITY(indv, tmp);
 		}
 		else if ((int)ui == DP_idx)
 		{
 			if (size>1)
-				LOG.error("Error: Only expect single value for DEPTH.\n");
+				LOG.error("Only expect single value for DEPTH.\n");
 
 			int tmp = -1;
 
@@ -299,7 +299,7 @@ void bcf_entry::parse_genotype_entry(unsigned int indv, bool GT, bool GQ, bool D
 				tmp = (int)tmp2;
 			}
 			else
-				LOG.error("Error: Invalid type for DEPTH.\n");
+				LOG.error("Invalid type for DEPTH.\n");
 
 			set_indv_DEPTH(indv, tmp);
 		}
@@ -657,7 +657,7 @@ void bcf_entry::print_bcf(BGZF* out, const set<string> &INFO_to_keep, bool keep_
 			else if (map_type == Flag)
 				make_typed_int(tmp_vector, 1, true );
 			else
-				LOG.error("Invalid type in INFO definition", 0);
+				LOG.error("Invalid type in INFO definition");
 
 			out_vector.insert(out_vector.end(), tmp_vector.begin(), tmp_vector.end());
 		}
