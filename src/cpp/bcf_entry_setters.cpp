@@ -10,6 +10,8 @@
 
 void bcf_entry::set_ALT(const int n_allele)
 {
+	if (n_allele <= 0)
+		LOG.error("Number of alleles must be positive.");
 	ALT.resize(n_allele-1);
 	unsigned int pos = ALT_pos;
 	string allele;
