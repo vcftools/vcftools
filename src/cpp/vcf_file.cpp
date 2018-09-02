@@ -210,10 +210,10 @@ void vcf_file::open()
 	if (i != 0)
 	{
 		perror("stat error");
-		LOG.error("Can't determine file type of " + filename, 0);
+		LOG.error("Can't determine file type of " + filename);
 	}
 	if (!S_ISREG(buf.st_mode))
-		LOG.error("Does not appear to be a regular file: " + filename, 0);
+		LOG.error("Does not appear to be a regular file: " + filename);
 
 	if (filename.substr(filename.size()-4) == ".bcf")
 		LOG.error("Filename ends in '.bcf'. Shouldn't you be using --bcf?\n");
@@ -224,7 +224,7 @@ void vcf_file::open()
 			LOG.error("Filename ends in '.gz'. Shouldn't you be using --gzvcf or --gzdiff?\n");
 		file_tmp.open(filename.c_str(), ios::in);
 		if (!file_tmp.is_open())
-			LOG.error("Could not open VCF file: " + filename, 0);
+			LOG.error("Could not open VCF file: " + filename);
 
 		file_in = &file_tmp;
 	}
@@ -243,7 +243,7 @@ void vcf_file::open_gz()
 		gzfile_in = gzopen(filename.c_str(), "rb");
 
 	if (gzfile_in == NULL)
-		LOG.error("Could not open GZVCF file: " + filename, 0);
+		LOG.error("Could not open GZVCF file: " + filename);
 	#ifdef ZLIB_VERNUM
 		string tmp(ZLIB_VERSION);
 		LOG.printLOG("Using zlib version: " + tmp + "\n");
