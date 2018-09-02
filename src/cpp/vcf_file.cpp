@@ -57,7 +57,7 @@ void vcf_file::read_header()
 	while (!eof())
 	{
 		read_line(line);
-		if (line[0] == '#')
+		if ((line.size() > 2) && (line[0] == '#'))
 			if (line[1] == '#')
 				meta_data.parse_meta(line, line_index);
 			else
