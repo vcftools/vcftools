@@ -24,7 +24,7 @@ sub error
         croak @msg;
     }
     die
-        "Usage: cat ref.fa | vcf-consensus [OPTIONS] in.vcf.gz \n",
+        "Usage: cat ref.fa | vcf-haplotypes [OPTIONS] in.vcf.gz \n",
         "Options:\n",
         "   -h, -?, --help                   This help message.\n",
         "   -H, --haplotypes [<int>]         Apply variants for the given haplotypes (1,2).  If not given, both haplotypes are applied.\n",

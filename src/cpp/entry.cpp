@@ -733,10 +733,7 @@ int entry::get_typed_int(unsigned int * line_position, const vector<char>& line,
 	get_type( line_position, line, type, size );
 
 	if (size > 1)
-	{
-		LOG.printLOG("Error: Int vector when expected only a single Integer value.\n" );
-		exit(0);
-	}
+		LOG.error("Int vector when expected only a single Integer value.\n" );
 
 	if (type == 1)
 	{
@@ -760,10 +757,8 @@ int entry::get_typed_int(unsigned int * line_position, const vector<char>& line,
 		out = tmp;
 	}
 	else
-	{
-		LOG.printLOG("Error: Invalid type for integer size.\n");
-		exit(0);
-	}
+		LOG.error("Invalid type for integer size.\n");
+	
 	return out;
 }
 
@@ -808,10 +803,8 @@ vector<int> entry::get_int_vector(unsigned int * line_position, const vector<cha
 		}
 	}
 	else
-	{
-		LOG.printLOG("Error: Invalid type for integer size.\n");
-		exit(0);
-	}
+		LOG.error("Invalid type for integer size.\n");
+
 	return out;
 }
 
@@ -852,10 +845,7 @@ void entry::get_type(unsigned int * line_position, const vector<char>& line, uns
 			size = (unsigned int)tmp;
 		}
 		else
-		{
-			LOG.printLOG("Error: Invalid type for integer size.\n");
-			exit(0);
-		}
+			LOG.error("Invalid type for integer size.\n");
 	}
 }
 

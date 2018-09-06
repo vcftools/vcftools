@@ -2291,7 +2291,7 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 	BED.close();
 
 	if (nlist == 0)
-		LOG.error("No sites found in positions file.\n",0);
+		LOG.error("No sites found in positions file.\n");
 
 	LOG.printLOG("\tRead in "+header::int2str(nlist)+" site(s) for LD analysis.\n");
 
@@ -2533,7 +2533,7 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 	BED.close();
 
 	if (nlist == 0)
-		LOG.error("No sites found in positions file.\n",0);
+		LOG.error("No sites found in positions file.\n");
 
 	LOG.printLOG("\tRead in "+header::int2str(nlist)+" site(s) for LD analysis.\n");
 
@@ -4324,8 +4324,10 @@ void variant_file::output_removed_sites(const parameters &params)
 		N_entries += e->apply_filters(params);
 
 		if(e->passed_filters)
+		{
+			N_kept_entries++;
 			continue;
-		N_kept_entries++;
+		}
 
 		e->parse_basic_entry();
 		POS = e->get_POS();
@@ -4835,7 +4837,7 @@ void variant_file::output_indv_relatedness_Yang(const parameters &params)
 
 void variant_file::output_PCA(const parameters &params)
 {
-#ifndef VCFTOOLS_PCA
+#if !(HAVE_LIBLAPACK)
 	string out = "Cannot run PCA analysis. Vcftools has been compiled without PCA enabled (requires LAPACK).";
 	LOG.error(out);
 #else
@@ -5010,7 +5012,7 @@ void variant_file::output_PCA_SNP_loadings(const parameters &params)
 {
     // TODO: This function duplicates a lot of what is in the output PCA function. Would be better to combine in a more
     // sensible fashion.
-#ifndef VCFTOOLS_PCA
+#if !(HAVE_LIBLAPACK)
 	string out = "Cannot run PCA analysis. Vcftools has been compiled without PCA enabled (requires LAPACK).";
 	LOG.error(out);
 #else

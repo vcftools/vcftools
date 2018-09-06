@@ -1613,6 +1613,7 @@ sub event_type
     elsif ( $allele=~/^[ACGT]$/ ) { $len=1; $type='s'; $ht=$allele; }
     elsif ( $allele=~/^I/ ) { $len=length($allele)-1; $type='i'; $ht=$'; }
     elsif ( $allele=~/^D(\d+)/ ) { $len=-$1; $type='i'; $ht=''; }
+    elsif ( length($allele)==length($ref) && $allele=~/^[ACGTN]+$/ && $ref=~/^[ACGTN]+$/ ) { $len = length($allele); $type='s'; $ht=$allele; }
     else 
     { 
         my $chr = ref($rec) eq 'HASH' ? $$rec{CHROM} : 'undef';
@@ -2350,7 +2351,7 @@ sub validate_info_field
     my $nr = -1;
     if ( $$self{version}>4.0 )
     {
-        if ( $$alts[0] eq '.' ) { $ng=1; $na=1; }
+        if ( $$alts[0] eq '.' ) { $ng=1; $na=1; $nr = 1; }
         else
         {
             $na = @$alts;

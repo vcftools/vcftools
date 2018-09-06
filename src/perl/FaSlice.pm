@@ -102,7 +102,7 @@ sub cache_chr_lengths
     while (my $line=<$fh>)
     {
         my @items = split(/\t/,$line);
-        my $chr = $$self{chr_naming}.$items[0];
+        my $chr = $items[0];
         $$self{chr_lengths}{$chr} = $items[1];
     }
     close($fh) or $self->throw("close $$self{file}.fai");
