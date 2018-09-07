@@ -3539,7 +3539,6 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_full_entry(true);
@@ -3557,6 +3556,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 			LOG.one_off_warning("\tFst: Only using fully haploid sites.");
 			continue;
 		}
+		N_kept_entries++;
 
 		vector<unsigned int> N_hom, N_het;
 		vector<double> n(N_pops, 0.0);
@@ -3721,7 +3721,6 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_full_entry(true);
@@ -3740,6 +3739,7 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 			LOG.one_off_warning("\tFst: Only using fully haploid sites.");
 			continue;
 		}
+		N_kept_entries++;
 
 		vector<unsigned int> N_hom, N_het;
 		vector<double> n(N_pops, 0.0);
@@ -3920,7 +3920,6 @@ void variant_file::output_per_site_nucleotide_diversity(const parameters &params
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_full_entry(true);
@@ -3937,6 +3936,7 @@ void variant_file::output_per_site_nucleotide_diversity(const parameters &params
 			LOG.one_off_warning("\tsitePi: Only using fully haploid sites.");
 			continue;
 		}
+		N_kept_entries++;
 
 		unsigned int N_non_missing_chr;
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
@@ -4012,7 +4012,6 @@ void variant_file::output_Tajima_D(const parameters &params)
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 		e->parse_basic_entry(true);
 		N_alleles = e->get_N_alleles();
 
@@ -4037,6 +4036,7 @@ void variant_file::output_Tajima_D(const parameters &params)
 			LOG.one_off_warning("\twindowPi: Only using fully haploid sites.");
 			continue;
 		}
+		N_kept_entries++;
 
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
 		double p = double(allele_counts[0]) / N_non_missing_chr;
@@ -4143,7 +4143,6 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_genotype_entries(true);
@@ -4160,6 +4159,7 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 			LOG.one_off_warning("\twindowPi: Only using fully haploid sites.");
 			continue;
 		}
+		N_kept_entries++;
 
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
 
