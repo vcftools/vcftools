@@ -3583,7 +3583,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 				hbar[j] += N_het[j];
 			}
 			for (unsigned int j=0; j<N_alleles; j++)
-				p[i][j] /= (ploidy*n[i]);
+				p[i][j] /= (2*n[i]);
 
 			sum_nsqr += (n[i] * n[i]);
 		}
@@ -3592,7 +3592,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 
 		for (unsigned int j=0; j<N_alleles; j++)
 		{
-			pbar[j] /= (n_sum*ploidy);
+			pbar[j] /= (n_sum*2);
 			hbar[j] /= n_sum;
 		}
 
@@ -3618,6 +3618,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 			b[j] = (pbar[j]*(1.0-pbar[j]) - (ssqr[j]*(r-1.0)/r) - hbar[j]*( ((2.0*nbar)-1.0) / (4.0*nbar) ))*nbar / (nbar-1.0) ;
 			c[j] = hbar[j] / 2.0;
 			snp_Fst[j] = a[j]/(a[j]+b[j]+c[j]);
+
 
 			if ((!std::isnan(a[j])) && (!std::isnan(b[j])) && (!std::isnan(c[j])))
 			{
@@ -3766,7 +3767,7 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 				hbar[j] += N_het[j];
 			}
 			for (unsigned int j=0; j<N_alleles; j++)
-				p[i][j] /= (ploidy*n[i]);
+				p[i][j] /= (2*n[i]);
 
 			sum_nsqr += (n[i] * n[i]);
 		}
@@ -3775,7 +3776,7 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 
 		for (unsigned int j=0; j<N_alleles; j++)
 		{
-			pbar[j] /= (n_sum*ploidy);
+			pbar[j] /= (n_sum*2);
 			hbar[j] /= n_sum;
 		}
 

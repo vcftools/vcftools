@@ -483,6 +483,9 @@ void entry::get_multiple_genotype_counts(const vector<bool> &include_indv, const
 					out_N_hom[uj]++;
 				else if (((genotype.first == uj) || (genotype.second == uj)) && (genotype.first != -1) && (genotype.second != -1))
 					out_N_het[uj]++;
+        else if (is_haploid() && (genotype.first == uj)) {
+          out_N_hom[uj]++; //Haploids are counted as homozygous
+}
 			}
 		}
 	}
