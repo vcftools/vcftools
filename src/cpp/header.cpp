@@ -356,7 +356,7 @@ int header::add_FILTER_descriptor(const string &in, int index)
 		tokenize(tokens[ui], '=', entry);
 		if (entry.size() < 2)
 		{
-			LOG.warning("Warning: Expected at least 2 parts in FORMAT entry: " + in);
+			LOG.warning("Warning: Expected at least 2 parts in FILTER entry: " + in);
 			continue;
 		}
 		if (entry[0] == "ID") I.ID = entry[1];
