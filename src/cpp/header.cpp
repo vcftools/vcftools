@@ -20,6 +20,8 @@ void header::parse_meta(const string &line, unsigned int &line_index)
 	lines.push_back(line);
 	if (line.compare(0,13,"##fileformat=")==0)
 	{
+	        if (line.size() < 13)
+        	    LOG.error("Malformed header line: " + line);
 		has_file_format = true;
 		string version = line.substr(13);
 		if ((version != "VCFv4.0") && (version != "VCFv4.1") && (version != "VCFv4.2"))
@@ -27,18 +29,26 @@ void header::parse_meta(const string &line, unsigned int &line_index)
 	}
 	else if (line.compare(0,7,"##INFO=")==0)
 	{	// Found an INFO descriptor
+	        if (line.size() < 8)
+        	    LOG.error("Malformed header line: " + line);
 		line_index += add_INFO_descriptor(line.substr(8, line.size()-8), line_index);
 	}
 	else if (line.compare(0,9,"##FILTER=")==0)
 	{	// Found a FILTER descriptor
+		if (line.size() < 10)
+        	    LOG.error("Malformed header line: " + line);
 		line_index += add_FILTER_descriptor(line.substr(10, line.size()-8), line_index);
 	}
 	else if (line.compare(0,9,"##FORMAT=")==0)
 	{	// Found a genotype filter descriptor
+		if (line.size() < 10)
+        	    LOG.error("Malformed header line: " + line);
 		line_index += add_FORMAT_descriptor(line.substr(10, line.size()-8), line_index);
 	}
 	else if (line.compare(0,9,"##contig=")==0)
 	{	// Found a contig descriptor
+		if (line.size() < 10)
+        	    LOG.error("Malformed header line: " + line);
 		add_CONTIG_descriptor(line.substr(10, line.size()-8), contig_index);
 		contig_index++;
 		has_contigs = true;
