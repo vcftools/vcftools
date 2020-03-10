@@ -201,7 +201,7 @@ sub _open
         $tabix_args .= qq['$$self{file}'];
         if ( exists($args{region}) && defined($args{region}) ) { $tabix_args .= qq[ '$args{region}']; }
 
-        if ( -e $$self{file} && $$self{file}=~/\.gz/i )
+        if ( -e $$self{file} && $$self{file}=~/\.gz$/i )
         {
             if ( exists($args{region}) && defined($args{region}) )
             {
