@@ -5,6 +5,7 @@
  *      Author: amarcketta
  */
 
+#include "config.h"
 #include "vcf_file.h"
 
 vcf_file::vcf_file(const parameters &p, bool diff)
