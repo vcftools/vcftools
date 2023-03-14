@@ -63,9 +63,7 @@ AC_SYS_LARGEFILE
 
 # Checks for library functions.
 AC_FUNC_ERROR_AT_LINE
-AC_FUNC_MALLOC
-AC_FUNC_REALLOC
-AC_CHECK_FUNCS([gethostbyaddr gethostbyname memset pow select socket sqrt strchr strdup strerror strstr strtol])
+AC_CHECK_FUNCS([gethostbyaddr gethostbyname malloc memset pow realloc select socket sqrt strchr strdup strerror strstr strtol])
 
 # Optional features.
 AC_ARG_ENABLE([pca],
