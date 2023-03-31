@@ -3,6 +3,11 @@
 # Author: petr.danecek@sanger
 #
 
+BEGIN {
+    use File::Basename;
+    push @INC, dirname (__FILE__);
+}
+
 use strict;
 use warnings;
 use Carp;
@@ -516,7 +521,7 @@ sub merge_vcf_files
             # The GT field must come as first
             delete($format{GT});
             $out{FORMAT} = ['GT'];
-            for my $key (keys %format) { push @{$out{FORMAT}},$key; }
+            for my $key (sort keys %format) { push @{$out{FORMAT}},$key; }
 
             if ( $have_samples )
             {
