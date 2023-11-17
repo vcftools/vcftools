@@ -4161,7 +4161,7 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 			continue;
 		}
 		N_kept_entries++;
-
+		
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
 
 		unsigned int N_site_mismatches = 0;
