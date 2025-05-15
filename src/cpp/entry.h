@@ -93,6 +93,7 @@ public:
 	bool is_SNP() const;
 	bool is_biallelic_SNP() const;
 	bool is_diploid() const;
+	bool is_haploid() const;
 	virtual void read_indv_generic_entry(unsigned int indv, const string &FORMAT_id, string &out) = 0;
 	bool FORMAT_id_exists(const string &FORMAT_id);
 

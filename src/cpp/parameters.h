@@ -154,6 +154,7 @@ public:
 	bool output_TsTv_by_qual;
 	bool output_TsTv_summary;
 	bool phased_only;
+	bool haploid;
 	bool PCA_no_normalisation;
 	int pi_window_size;
 	int pi_window_step;

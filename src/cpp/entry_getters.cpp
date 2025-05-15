@@ -105,6 +105,21 @@ bool entry::is_diploid() const
 	return true;
 }
 
+bool entry::is_haploid() const
+{
+	for (unsigned int ui=0; ui<N_indv; ui++)
+	{
+		if ((include_indv[ui] == true) && (include_genotype[ui] == true))
+		{
+			assert(parsed_GT[ui] == true);
+			if (ploidy[ui] != 1)
+				return false;
+		}
+	}
+	return true;
+}
+
+
 void entry::get_allele(int allele_num, string &out) const
 {
 	assert(parsed_ALT == true);
@@ -397,7 +412,6 @@ void entry::get_allele_counts(vector<int> &out, unsigned int &N_non_missing_chr_
 	pair<int,int> genotype;
 	vector<int> allele_counts(get_N_alleles(), 0);
 	N_non_missing_chr_out = 0;
-
 	for (unsigned int ui=0; ui<N_indv; ui++)
 	{
 		//FILTERING BY INDIVIDUAL
@@ -468,6 +482,9 @@ void entry::get_multiple_genotype_counts(const vector<bool> &include_indv, const
 					out_N_hom[uj]++;
 				else if (((genotype.first == uj) || (genotype.second == uj)) && (genotype.first != -1) && (genotype.second != -1))
 					out_N_het[uj]++;
+				else if (is_haploid() && (genotype.first == uj)) {
+          				out_N_hom[uj]++; //Haploids are counted as homozygous
+				}
 			}
 		}
 	}

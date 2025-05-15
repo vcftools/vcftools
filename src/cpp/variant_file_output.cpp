@@ -3475,6 +3475,8 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 		LOG.error("Require Genotypes in VCF file in order to output Fst statistics.");
 
 	LOG.printLOG("Outputting Weir and Cockerham Fst estimates.\n");
+	
+	unsigned int ploidy = params.haploid ? 1 : 2;
 
 	// First, read in the relevant files.
 	vector< vector<bool> > indvs_in_pops;
@@ -3537,18 +3539,24 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_full_entry(true);
 		e->parse_genotype_entries(true);
 
 		unsigned int N_alleles = e->get_N_alleles();
-		if (e->is_diploid() == false)
+		if (ploidy == 2 && ! e->is_diploid())
 		{
-			LOG.one_off_warning("\tFst: Only using diploid sites.");
+			LOG.one_off_warning("\tFst: Only using fully diploid sites.");
 			continue;
 		}
+
+		if (ploidy == 1 && ! e->is_haploid())
+		{
+			LOG.one_off_warning("\tFst: Only using fully haploid sites.");
+			continue;
+		}
+		N_kept_entries++;
 
 		vector<unsigned int> N_hom, N_het;
 		vector<double> n(N_pops, 0.0);
@@ -3575,7 +3583,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 				hbar[j] += N_het[j];
 			}
 			for (unsigned int j=0; j<N_alleles; j++)
-				p[i][j] /= (2.0*n[i]);	// diploid
+				p[i][j] /= (2*n[i]);
 
 			sum_nsqr += (n[i] * n[i]);
 		}
@@ -3584,7 +3592,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 
 		for (unsigned int j=0; j<N_alleles; j++)
 		{
-			pbar[j] /= (n_sum*2.0); //diploid
+			pbar[j] /= (n_sum*2);
 			hbar[j] /= n_sum;
 		}
 
@@ -3610,6 +3618,7 @@ void variant_file::output_weir_and_cockerham_fst(const parameters &params)
 			b[j] = (pbar[j]*(1.0-pbar[j]) - (ssqr[j]*(r-1.0)/r) - hbar[j]*( ((2.0*nbar)-1.0) / (4.0*nbar) ))*nbar / (nbar-1.0) ;
 			c[j] = hbar[j] / 2.0;
 			snp_Fst[j] = a[j]/(a[j]+b[j]+c[j]);
+
 
 			if ((!std::isnan(a[j])) && (!std::isnan(b[j])) && (!std::isnan(c[j])))
 			{
@@ -3640,6 +3649,7 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 {
 	int fst_window_size = params.fst_window_size;
 	int fst_window_step = params.fst_window_step;
+	unsigned int ploidy = params.haploid ? 1 : 2;
 	vector<string> indv_files = params.weir_fst_populations;
 
 	if ((fst_window_step <= 0) || (fst_window_step > fst_window_size))
@@ -3712,19 +3722,25 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_full_entry(true);
 		e->parse_genotype_entries(true);
-
+		
 		unsigned int N_alleles = e->get_N_alleles();
-
-		if (e->is_diploid() == false)
+		
+		if (ploidy == 2 && ! e->is_diploid())
 		{
-			LOG.one_off_warning("\tFst: Only using diploid sites.");
+			LOG.one_off_warning("\tFst: Only using fully diploid sites.");
 			continue;
 		}
+
+		if (ploidy == 1 && ! e->is_haploid())
+		{
+			LOG.one_off_warning("\tFst: Only using fully haploid sites.");
+			continue;
+		}
+		N_kept_entries++;
 
 		vector<unsigned int> N_hom, N_het;
 		vector<double> n(N_pops, 0.0);
@@ -3751,7 +3767,7 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 				hbar[j] += N_het[j];
 			}
 			for (unsigned int j=0; j<N_alleles; j++)
-				p[i][j] /= (2.0*n[i]);	// diploid
+				p[i][j] /= (2*n[i]);
 
 			sum_nsqr += (n[i] * n[i]);
 		}
@@ -3760,7 +3776,7 @@ void variant_file::output_windowed_weir_and_cockerham_fst(const parameters &para
 
 		for (unsigned int j=0; j<N_alleles; j++)
 		{
-			pbar[j] /= (n_sum*2.0); //diploid
+			pbar[j] /= (n_sum*2);
 			hbar[j] /= n_sum;
 		}
 
@@ -3888,6 +3904,8 @@ void variant_file::output_per_site_nucleotide_diversity(const parameters &params
 	else
 		buf = cout.rdbuf();
 
+	unsigned int ploidy = params.haploid ? 1 : 2;
+	
 	ostream out(buf);
 	out << "CHROM\tPOS\tPI" << endl;
 
@@ -3903,17 +3921,23 @@ void variant_file::output_per_site_nucleotide_diversity(const parameters &params
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_full_entry(true);
 		e->parse_genotype_entries(true);
 
-		if (e->is_diploid() == false)
+		if (ploidy == 2 && ! e->is_diploid())
 		{
 			LOG.one_off_warning("\tsitePi: Only using fully diploid sites.");
 			continue;
 		}
+
+		if (ploidy == 1 && ! e->is_haploid())
+		{
+			LOG.one_off_warning("\tsitePi: Only using fully haploid sites.");
+			continue;
+		}
+		N_kept_entries++;
 
 		unsigned int N_non_missing_chr;
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
@@ -3940,6 +3964,7 @@ void variant_file::output_per_site_nucleotide_diversity(const parameters &params
 void variant_file::output_Tajima_D(const parameters &params)
 {
 	int window_size = params.output_Tajima_D_bin_size;
+	unsigned int ploidy = params.haploid ? 1 : 2;
 
 	if (window_size <= 0)
 		return;
@@ -3951,7 +3976,7 @@ void variant_file::output_Tajima_D(const parameters &params)
 	string output_file = params.output_prefix + ".Tajima.D";
 
 	double a1=0.0, a2=0.0, b1, b2, c1, c2, e1, e2;
-	unsigned int n = N_kept_individuals()*2;
+	unsigned int n = N_kept_individuals()*ploidy;
 	if (n < 2)
 		LOG.error("Require at least two chromosomes!");
 
@@ -3988,7 +4013,6 @@ void variant_file::output_Tajima_D(const parameters &params)
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 		e->parse_basic_entry(true);
 		N_alleles = e->get_N_alleles();
 
@@ -4002,11 +4026,18 @@ void variant_file::output_Tajima_D(const parameters &params)
 		idx = (unsigned int)(e->get_POS() * C);
 		e->parse_genotype_entries(true);
 
-		if (e->is_diploid() == false)
+		if (ploidy == 2 && ! e->is_diploid())
 		{
-			LOG.one_off_warning("\tTajimaD: Only using fully diploid sites.");
+			LOG.one_off_warning("\twindowPi: Only using fully diploid sites.");
 			continue;
 		}
+
+		if (ploidy == 1 && ! e->is_haploid())
+		{
+			LOG.one_off_warning("\twindowPi: Only using fully haploid sites.");
+			continue;
+		}
+		N_kept_entries++;
 
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
 		double p = double(allele_counts[0]) / N_non_missing_chr;
@@ -4068,6 +4099,7 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 	// Average number of pairwise differences in windows.
 	int window_size = params.pi_window_size;
 	int window_step = params.pi_window_step;
+	unsigned int ploidy = params.haploid ? 1 : 2;
 
 	if (window_size <= 0)
 		return;
@@ -4127,18 +4159,24 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 
 		if(!e->passed_filters)
 			continue;
-		N_kept_entries++;
 
 		e->parse_basic_entry(true);
 		e->parse_genotype_entries(true);
 		CHROM = e->get_CHROM();
 
-		if (e->is_diploid() == false)
+		if (ploidy == 2 && ! e->is_diploid())
 		{
 			LOG.one_off_warning("\twindowPi: Only using fully diploid sites.");
 			continue;
 		}
 
+		if (ploidy == 1 && ! e->is_haploid())
+		{
+			LOG.one_off_warning("\twindowPi: Only using fully haploid sites.");
+			continue;
+		}
+		N_kept_entries++;
+		
 		e->get_allele_counts(allele_counts, N_non_missing_chr);
 
 		unsigned int N_site_mismatches = 0;
@@ -4194,7 +4232,7 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 	out << "CHROM\tBIN_START\tBIN_END\tN_VARIANTS\tN_MONOMORPHIC\tPI" << endl;
 
 	unsigned long N_monomorphic_sites = 0;
-	int N_kept_chr = 2*N_kept_individuals();
+	int N_kept_chr = ploidy*N_kept_individuals();
 	N_comparisons = (N_kept_chr * (N_kept_chr - 1)); 	// Number of pairwise comparisons at a monomorphic site
 	unsigned long N_pairs = 0; 								// Number of pairwise comparisons within a window
 	double pi = 0;

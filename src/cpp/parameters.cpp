@@ -127,6 +127,7 @@ parameters::parameters(int argc, char *argv[])
 	output_TsTv_by_qual = false;
 	output_TsTv_summary = false;
 	phased_only = false;
+	haploid = false;
 	PCA_no_normalisation = false;
 	pi_window_size = 0;
 	pi_window_step = 0;
@@ -309,6 +310,7 @@ void parameters::read_parameters()
 		else if (in_str == "--pca-no-norm") { output_PCA = true; PCA_no_normalisation = true; min_alleles=2; max_alleles=2; num_outputs++;}
 		else if (in_str == "--pca-snp-loadings") { output_N_PCA_SNP_loadings = atoi(get_arg(i+1).c_str()); min_alleles=2; max_alleles=2; i++; num_outputs++;}
 		else if (in_str == "--phased") phased_only = true;								// Keep only phased individuals / sites
+		else if (in_str == "--haploid") haploid = true;								// Haploid genotypes. Diplod SNPs will be ignored and haploid ones kept in functions that requires a distinction.
 		else if (in_str == "--plink") {plink_output = true; num_outputs++;}				// Output as PLINK file
 		else if (in_str == "--plink-tped") {plink_tped_output = true; num_outputs++;}	// Output as PLINK tped file
 		else if (in_str == "--positions") { positions_file = get_arg(i+1); i++; }
