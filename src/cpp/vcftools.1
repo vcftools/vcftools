@@ -529,6 +529,8 @@ Measures nucleotide divergency on a per-site basis. The output file has the suff
 .I <integer>
 .RS 2
 Measures the nucleotide diversity in windows, with the number provided as the window size. The output file has the suffix ".windowed.pi". The latter is an optional argument used to specify the step size in between windows.
+.br
+Note: vcftools can make use of a mask (defined using the --mask parameter) to define which sites have been well characterized for the estimation of nucleotide diversity. Using a mask to define the well-characterized portion of the genome is recommended when estimating nucleotide diversity, as (for example) genetic variants may be poorly characterized in low-coverage or poorly sequenced regions of the genome.
 .RE
 .SS OUTPUT FST STATISTICS
 .RS 2
