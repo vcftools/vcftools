@@ -4079,6 +4079,21 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 		LOG.error("Require Genotypes in VCF file in order to output Nucleotide Diversity Statistics.");
 
 	LOG.printLOG("Outputting Windowed Nucleotide Diversity Statistics...\n");
+
+	ifstream mask;
+	bool use_mask = false;
+	if (params.mask_file != "")
+	{
+		LOG.printLOG("Using mask in Windowed Nucleotide Diversity calculation...\n");
+		mask.open(params.mask_file.c_str());
+		if (!mask.is_open())
+			LOG.error("Could not open mask file: " + params.mask_file);
+		use_mask = true;
+		mask.close();
+	} else {
+		LOG.warning("Calculating Windowed Nucleotide Diversity without a mask can give misleading results. It is recommended you use a mask to define well characterized sites in the genome.");
+	}
+
 	string output_file = params.output_prefix + ".windowed.pi";
 
 	string CHROM;
@@ -4176,24 +4191,78 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 		buf = cout.rdbuf();
 
 	ostream out(buf);
-	out << "CHROM\tBIN_START\tBIN_END\tN_VARIANTS\tPI" << endl;
+	out << "CHROM\tBIN_START\tBIN_END\tN_VARIANTS\tN_MONOMORPHIC\tPI" << endl;
 
 	unsigned long N_monomorphic_sites = 0;
 	int N_kept_chr = 2*N_kept_individuals();
 	N_comparisons = (N_kept_chr * (N_kept_chr - 1)); 	// Number of pairwise comparisons at a monomorphic site
 	unsigned long N_pairs = 0; 								// Number of pairwise comparisons within a window
 	double pi = 0;
+	vector<char> mask_data; // Used to store mask data if needed.
 
 	for (unsigned int ui=0; ui<chrs.size(); ui++)
 	{
 		CHROM = chrs[ui];
+
+		if (use_mask == true)
+		{
+			LOG.printLOG("Reading mask for chromosome: " + CHROM + "\n");
+	                mask.open(params.mask_file.c_str());
+        	        if (!mask.is_open())
+                        LOG.error("Could not open mask file: " + params.mask_file);
+			string mask_chr = "";
+			string line;
+			while (!mask.eof())
+			{
+				getline(mask, line);
+				line.erase( line.find_last_not_of(" \t") + 1);
+
+				if (line[0] == '>')
+				{
+					mask_chr = line.substr(1, line.find_first_of(" \t")-1);
+					if (mask_chr == CHROM)
+						break;
+				}
+			}
+			mask_data.resize(0);
+			while (!mask.eof())
+			{
+				getline(mask, line);
+				line.erase( line.find_last_not_of(" \t") + 1);
+
+				if (line[0] == '>')
+					break;
+				vector<short> digits(line.begin(), line.end());
+				for (unsigned int uj=0; uj < digits.size(); uj++)
+					digits[uj] -= '0';
+				mask_data.insert(mask_data.end(), digits.begin(), digits.end());
+			}
+			mask.close();
+		}
+
 		for (unsigned int s=0; s<bins[CHROM].size(); s++)
 		{
 			if( (bins[CHROM][s][N_polymorphic_sites] > 0) || (bins[CHROM][s][N_mismatches] > 0) )
 			{
-				// This number can be slightly off for the last bin since the
-				// window size can go off the end of the chromosome.
-				N_monomorphic_sites = window_size - bins[CHROM][s][N_variant_sites];
+				N_monomorphic_sites = 0;
+				if (use_mask == false)
+				{
+					// This number can be slightly off for the last bin since the
+					// window size can go off the end of the chromosome.
+					N_monomorphic_sites = window_size - bins[CHROM][s][N_variant_sites];
+				} else {
+					bool keep;
+					unsigned long N_unmasked_sites = 0;
+					for (unsigned int uj=(s*window_step); uj < min((unsigned int)((s*window_step) + window_size), (unsigned int)mask_data.size()); uj++)
+					{
+						keep = mask_data[uj] <= params.min_kept_mask_value;
+						if (params.invert_mask == true)
+							keep = !keep;
+						if (keep == true)
+							N_unmasked_sites++;
+					}
+					N_monomorphic_sites = N_unmasked_sites - bins[CHROM][s][N_variant_sites];
+				}
 
 				// The total number of possible pairwise comparisons is the sum of
 				// pairwise comparisons at polymorphic sites and pairwise
@@ -4205,7 +4274,8 @@ void variant_file::output_windowed_nucleotide_diversity(const parameters &params
 				    << s*window_step + 1 << "\t"
 				    << (s*window_step + window_size) << "\t"
 				    << bins[CHROM][s][N_polymorphic_sites] << "\t"
-				    << pi << endl;
+				    << N_monomorphic_sites << "\t"
+			        << pi << endl;
 			}
 		}
 	}
