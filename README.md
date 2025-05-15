@@ -65,9 +65,7 @@ man vcftools
 Getting Help
 ------------
 
-The best way to get help regarding VCFtools is to email the mailing list:
-
-vcftools-help@lists.sourceforge.net
+The best way to get help regarding VCFtools is to use the GitHub Issues page.
 
 Citation
 --------
