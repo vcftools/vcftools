@@ -1,3 +1,4 @@
+
 .\" Manpage for vcftools.
 .TH vcftools man page 1 "2 August 2018" "0.1.17" "vcftools man page"
 .SH NAME
@@ -564,6 +565,15 @@ Reports a p-value for each site from a Hardy-Weinberg Equilibrium test (as defin
 .I <integer> 
 .RS 2
 Outputs Tajima's D statistic in bins with size of the specified number. The output file has the suffix ".Tajima.D".
+.RE
+.PP
+.B --TajimaD-size
+.I <integer>
+.br
+.B --TajimaD-step
+.I <integer>
+.RS 2
+Outputs Tajima's D statistic in windows, with the number provided as the window size. The output file has the suffix ".windowed.Tajima.D". The latter is an optional argument used to specify the step size in between windows.
 .RE
 .PP
 .B --indv-freq-burden

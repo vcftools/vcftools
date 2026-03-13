@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
 	if (params.output_site_pi == true) vf->output_per_site_nucleotide_diversity(params);
 	if (params.pi_window_size > 0) vf->output_windowed_nucleotide_diversity(params);
 	if (params.output_Tajima_D_bin_size > 0) vf->output_Tajima_D(params);
+	if (params.tajima_D_window_size > 0) vf->output_windowed_Tajima_D(params);
 	if (params.output_TsTv_bin_size > 0) vf->output_TsTv(params);
 	if (params.output_TsTv_by_count) vf->output_TsTv_by_count(params);
 	if (params.output_TsTv_by_qual) vf->output_TsTv_by_quality(params);

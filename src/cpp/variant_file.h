@@ -112,6 +112,7 @@ public:
 	void output_per_site_nucleotide_diversity(const parameters &params);
 	void output_windowed_nucleotide_diversity(const parameters &params);
 	void output_Tajima_D(const parameters &params);
+	void output_windowed_Tajima_D(const parameters &params);
 	void output_site_quality(const parameters &params);
 	void output_FILTER_summary(const parameters &params);
 	void output_kept_sites(const parameters &params);

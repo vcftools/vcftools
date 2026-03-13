@@ -179,6 +179,8 @@ public:
 	bool stream_err;
 	bool stream_out;
 	bool suppress_allele_output;
+	int tajima_D_window_size;
+	int tajima_D_window_step;
 	string temp_dir;
 	string vcf_filename;
 	bool vcf_format;
