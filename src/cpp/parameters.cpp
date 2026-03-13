@@ -145,6 +145,8 @@ parameters::parameters(int argc, char *argv[])
 	stream_in = false;
 	stream_out = false;
 	suppress_allele_output = false;
+  tajima_D_window_size = 0;
+  tajima_D_window_step = 0;
 	const char* raw = getenv("TMPDIR");	// Get environment variable
         temp_dir = raw?raw:"";	// Handle case where TMPDIR is NULL.
 	if(temp_dir.empty()) temp_dir = "/tmp/";
@@ -338,6 +340,8 @@ void parameters::read_parameters()
 		else if (in_str == "--snps") { snps_to_keep_file = get_arg(i+1); i++; }						// List of SNPs to keep
 		else if (in_str == "--stdout") {stream_out = true; }						// Write output to stream
 		else if (in_str == "--TajimaD") { output_Tajima_D_bin_size = atoi(get_arg(i+1).c_str()); i++; num_outputs++;} //Output Tajima D
+    else if (in_str == "--TajimaD-size") { tajima_D_window_size = atoi(get_arg(i+1).c_str()); i++; num_outputs++;}  // Window size for Tajima D calculation
+    else if (in_str == "--TajimaD-step") { tajima_D_window_step = atoi(get_arg(i+1).c_str()); i++; }                // Window step for Tajima D calculation
 		else if (in_str == "--temp") { temp_dir = get_arg(i+1); i++;}	// Directory for vcftools temporary files
 		else if (in_str == "--to-bp") { end_pos = atoi(get_arg(i+1).c_str()); i++; }						// End position
 		else if (in_str == "--thin") { min_interSNP_distance = atoi(get_arg(i+1).c_str()); i++; }	// Set minimum distance between SNPs
@@ -521,6 +525,8 @@ void parameters::print_params()
 	if (snps_to_keep_file != defaults.snps_to_keep_file) LOG.printLOG("\t--snps " + snps_to_keep_file + "\n");
 	if (start_pos != defaults.start_pos) LOG.printLOG("\t--from-bp " + output_log::int2str(start_pos) + "\n");
 	if (stream_out != defaults.stream_out) LOG.printLOG("\t--stdout\n");
+  if (tajima_D_window_size != defaults.tajima_D_window_size) LOG.printLOG("\t--TajimaD-size " + output_log::int2str(tajima_D_window_size) + "\n");
+	if (tajima_D_window_step != defaults.tajima_D_window_step) LOG.printLOG("\t--TajimaD-step " + output_log::int2str(tajima_D_window_step) + "\n");
 	if (temp_dir != defaults.temp_dir) LOG.printLOG("\t--temp " + temp_dir + "\n");
 	if (output_Tajima_D_bin_size != defaults.output_Tajima_D_bin_size) LOG.printLOG("\t--TajimaD " + output_log::int2str(output_Tajima_D_bin_size) + "\n");
 	if (output_as_ldhat_phased) LOG.printLOG("\t--ldhat\n");
@@ -722,6 +728,7 @@ void parameters::check_parameters()
 	if (output_TsTv_bin_size < 0) error("TsTv bin size must be > 0",16);
 	if (output_Tajima_D_bin_size < 0) error("Tajima D bin size must be > 0", 17);
 	if (pi_window_size < 0) error("Pi Window size must be > 0", 18);
+	if (tajima_D_window_size < 0) error("Tajima D Window size must be > 0", 18);
 	if (output_SNP_density_bin_size < 0) error("SNP density bin size must be > 0", 18);
 	if (stream_out)
 	{

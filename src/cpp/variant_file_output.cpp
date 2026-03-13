@@ -4062,6 +4062,147 @@ void variant_file::output_Tajima_D(const parameters &params)
 	delete e;
 }
 
+void variant_file::output_windowed_Tajima_D(const parameters &params)
+{
+  // Outout Tajima's D, as calcukated in windows with size and step.
+  int window_size = params.tajima_D_window_size;
+  int window_step = params.tajima_D_window_step;
+
+  if (window_size <= 0)
+    return;
+
+	if ((window_step <= 0) || (window_step > window_size))
+		window_step = window_size;
+
+  if ((meta_data.has_genotypes == false) | (N_kept_individuals() == 0))
+	  LOG.error("Require Genotypes in VCF file in order to output Tajima's D Statistic.");
+
+	LOG.printLOG("Outputting Windowed Tajima's D Statistic...\n");
+	string output_file = params.output_prefix + ".windowed.Tajima.D";
+
+	double a1=0.0, a2=0.0, b1, b2, c1, c2, e1, e2;
+	unsigned int n = N_kept_individuals()*2;
+	if (n < 2)
+		LOG.error("Require at least two chromosomes!");
+
+	for (unsigned int ui=1; ui<n; ui++)
+	{
+		a1 += 1.0 / double(ui);
+		a2 += 1.0 / double(ui * ui);
+	}
+	b1 = double(n+1) / 3.0 / double(n-1);
+	b2 = 2.0 * double(n*n + n + 3) / 9.0 / double(n) / double(n-1);
+	c1 = b1 - (1.0 / a1);
+	c2 = b2 - (double(n+2)/double(a1*n)) + (a2/a1/a1);
+	e1 = c1 / a1;
+	e2 = c2 / ((a1*a1) + a2);
+
+	string CHROM;
+	vector<char> variant_line;
+	entry *e = get_entry_object();
+	map<string, vector< pair<int, double> > > bins;
+
+	vector<int> allele_counts;
+	unsigned int N_non_missing_chr;
+	unsigned int N_alleles;
+	string prev_chr = "";
+	vector<string> chrs;
+
+  while(!eof())
+  {
+		get_entry(variant_line);
+		e->reset(variant_line);
+		N_entries += e->apply_filters(params);
+
+		if(!e->passed_filters)
+			continue;
+		N_kept_entries++;
+		e->parse_basic_entry(true);
+		N_alleles = e->get_N_alleles();
+
+		if (N_alleles != 2)
+		{
+			LOG.one_off_warning("\tTajimaD: Only using bialleleic sites.");
+			continue;
+		}
+
+		CHROM = e->get_CHROM();
+  	int pos = (int)e->get_POS();
+		int first = (int) ceil((pos - window_size)/double(window_step));
+		if (first < 0)
+			first = 0;
+		int last = (int) ceil(pos/double(window_step));
+		e->parse_genotype_entries(true);
+
+		if (e->is_diploid() == false)
+		{
+			LOG.one_off_warning("\tTajimaD: Only using fully diploid sites.");
+			continue;
+		}
+
+		e->get_allele_counts(allele_counts, N_non_missing_chr);
+		double p = double(allele_counts[0]) / N_non_missing_chr;
+
+		if(last>=bins[CHROM].size())
+			bins[CHROM].resize(last+1, make_pair(0,0));
+		if(CHROM != prev_chr)
+		{
+			chrs.push_back(CHROM);
+			prev_chr = CHROM;
+		}
+
+		if ((p > 0.0) && (p < 1.0))
+    {
+      for(int idx = first; idx < last; idx++)
+      {
+        bins[CHROM][idx].first++;               // number of polymorphic sites, S
+        bins[CHROM][idx].second += p * (1.0-p); // expected heterozygozity to caluclate pi
+      }
+    }
+  }
+
+	// Calculate and print windowed Tajima's D
+  streambuf * buf;
+	ofstream temp_out;
+	if (!params.stream_out)
+	{
+		temp_out.open(output_file.c_str(), ios::out);
+		if (!temp_out.is_open()) LOG.error("Could not open windowed Tajima D Output file: " + output_file, 12);
+		buf = temp_out.rdbuf();
+	}
+	else
+		buf = cout.rdbuf();
+
+	ostream out(buf);
+	out << "CHROM\tBIN_START\tBIN_END\tN_SNPS\tTajimaD" << endl;
+
+  for (unsigned int ui=0; ui<chrs.size(); ui++)
+  {
+		CHROM = chrs[ui];
+		bool output = false;
+		for (unsigned int s=0; s<bins[CHROM].size(); s++)
+		{
+			int S = bins[CHROM][s].first;
+			double D = numeric_limits<double>::quiet_NaN();
+			if (S > 0)
+			{
+				double pi = 2.0*bins[CHROM][s].second*n/double(n-1);
+				double tw = double(S) / a1;
+				double var = (e1*S) + e2*S*(S-1);
+				D = (pi - tw) / sqrt(var);
+				output = true;
+			}
+			if (output == true)
+				out << CHROM << "\t"
+				    << s*window_step + 1 << "\t"
+				    << (s*window_step + window_size) << "\t"
+            << bins[CHROM][s].first<< "\t"
+              << D << endl;
+		}
+  }
+  delete e;
+}
+
 void variant_file::output_windowed_nucleotide_diversity(const parameters &params)
 {
 	// Output nucleotide diversity, as calculated in windows.
