@@ -4064,18 +4064,18 @@ void variant_file::output_Tajima_D(const parameters &params)
 
 void variant_file::output_windowed_Tajima_D(const parameters &params)
 {
-  // Outout Tajima's D, as calcukated in windows with size and step.
-  int window_size = params.tajima_D_window_size;
-  int window_step = params.tajima_D_window_step;
+	// Outout Tajima's D, as calcukated in windows with size and step.
+	int window_size = params.tajima_D_window_size;
+	int window_step = params.tajima_D_window_step;
 
-  if (window_size <= 0)
-    return;
+	if (window_size <= 0)
+		return;
 
 	if ((window_step <= 0) || (window_step > window_size))
 		window_step = window_size;
 
-  if ((meta_data.has_genotypes == false) | (N_kept_individuals() == 0))
-	  LOG.error("Require Genotypes in VCF file in order to output Tajima's D Statistic.");
+	if ((meta_data.has_genotypes == false) | (N_kept_individuals() == 0))
+		LOG.error("Require Genotypes in VCF file in order to output Tajima's D Statistic.");
 
 	LOG.printLOG("Outputting Windowed Tajima's D Statistic...\n");
 	string output_file = params.output_prefix + ".windowed.Tajima.D";
@@ -4108,8 +4108,8 @@ void variant_file::output_windowed_Tajima_D(const parameters &params)
 	string prev_chr = "";
 	vector<string> chrs;
 
-  while(!eof())
-  {
+	while(!eof())
+	{
 		get_entry(variant_line);
 		e->reset(variant_line);
 		N_entries += e->apply_filters(params);
@@ -4127,7 +4127,7 @@ void variant_file::output_windowed_Tajima_D(const parameters &params)
 		}
 
 		CHROM = e->get_CHROM();
-  	int pos = (int)e->get_POS();
+		int pos = (int)e->get_POS();
 		int first = (int) ceil((pos - window_size)/double(window_step));
 		if (first < 0)
 			first = 0;
@@ -4152,17 +4152,17 @@ void variant_file::output_windowed_Tajima_D(const parameters &params)
 		}
 
 		if ((p > 0.0) && (p < 1.0))
-    {
-      for(int idx = first; idx < last; idx++)
-      {
-        bins[CHROM][idx].first++;               // number of polymorphic sites, S
-        bins[CHROM][idx].second += p * (1.0-p); // expected heterozygozity to caluclate pi
-      }
-    }
-  }
+		{
+			for(int idx = first; idx < last; idx++)
+			{
+				bins[CHROM][idx].first++;							 	// number of polymorphic sites, S
+				bins[CHROM][idx].second += p * (1.0-p); // expected heterozygozity to caluclate pi
+			}
+		}
+	}
 
 	// Calculate and print windowed Tajima's D
-  streambuf * buf;
+	streambuf * buf;
 	ofstream temp_out;
 	if (!params.stream_out)
 	{
@@ -4176,8 +4176,8 @@ void variant_file::output_windowed_Tajima_D(const parameters &params)
 	ostream out(buf);
 	out << "CHROM\tBIN_START\tBIN_END\tN_SNPS\tTajimaD" << endl;
 
-  for (unsigned int ui=0; ui<chrs.size(); ui++)
-  {
+	for (unsigned int ui=0; ui<chrs.size(); ui++)
+	{
 		CHROM = chrs[ui];
 		bool output = false;
 		for (unsigned int s=0; s<bins[CHROM].size(); s++)
@@ -4194,13 +4194,13 @@ void variant_file::output_windowed_Tajima_D(const parameters &params)
 			}
 			if (output == true)
 				out << CHROM << "\t"
-				    << s*window_step + 1 << "\t"
-				    << (s*window_step + window_size) << "\t"
-            << bins[CHROM][s].first<< "\t"
-              << D << endl;
+						<< s*window_step + 1 << "\t"
+						<< (s*window_step + window_size) << "\t"
+						<< bins[CHROM][s].first<< "\t"
+							<< D << endl;
 		}
-  }
-  delete e;
+	}
+	delete e;
 }
 
 void variant_file::output_windowed_nucleotide_diversity(const parameters &params)
