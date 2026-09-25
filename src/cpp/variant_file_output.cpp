@@ -3148,8 +3148,8 @@ void variant_file::output_TsTv_by_count(const parameters &params)
 	LOG.printLOG("Outputting Ts/Tv by Alternative Allele Count\n");
 	vector<unsigned int> Ts_counts, Tv_counts;
 	unsigned int N_kept_indv = N_kept_individuals();
-	Ts_counts.resize(2*N_kept_indv);
-	Tv_counts.resize(2*N_kept_indv);
+	Ts_counts.resize(2*N_kept_indv + 1);
+	Tv_counts.resize(2*N_kept_indv + 1);
 
 	string model;
 	vector<char> variant_line;
@@ -3218,7 +3218,7 @@ void variant_file::output_TsTv_by_count(const parameters &params)
 
 	double ratio;
 	out << "ALT_ALLELE_COUNT\tN_Ts\tN_Tv\tTs/Tv" << endl;
-	for (unsigned int ui=0; ui<2*N_kept_indv; ui++)
+	for (unsigned int ui=0; ui<=2*N_kept_indv; ui++)
 	{
 		ratio = double(Ts_counts[ui]) / Tv_counts[ui];
 		out << ui << "\t" << Ts_counts[ui] << "\t" << Tv_counts[ui] << "\t" << ratio << endl;
