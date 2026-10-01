@@ -1439,7 +1439,7 @@ void variant_file::output_haplotype_r2(const parameters &params)
 	entry *e = get_entry_object();
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
-	char tmpname[new_tmp.size()];
+	char tmpname[new_tmp.size()+1];
 	strcpy(tmpname, new_tmp.c_str());
 
 	ret = mkstemp(tmpname);
@@ -1616,7 +1616,7 @@ void variant_file::output_genotype_r2(const parameters &params)
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
-	char tmpname[new_tmp.size()];
+	char tmpname[new_tmp.size()+1];
 	strcpy(tmpname, new_tmp.c_str());
 
 	ret = mkstemp(tmpname);
@@ -1790,7 +1790,7 @@ void variant_file::output_genotype_chisq(const parameters &params, double min_pv
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
-	char tmpname[new_tmp.size()];
+	char tmpname[new_tmp.size()+1];
 	strcpy(tmpname, new_tmp.c_str());
 
 	ret = mkstemp(tmpname);
@@ -1955,7 +1955,7 @@ void variant_file::output_interchromosomal_genotype_r2(const parameters &params)
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
-	char tmpname[new_tmp.size()];
+	char tmpname[new_tmp.size()+1];
 	strcpy(tmpname, new_tmp.c_str());
 
 	ret = mkstemp(tmpname);
@@ -2112,7 +2112,7 @@ void variant_file::output_interchromosomal_haplotype_r2(const parameters &params
 	vector<char> out_line, tmp_int;
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
-	char tmpname[new_tmp.size()];
+	char tmpname[new_tmp.size()+1];
 	strcpy(tmpname, new_tmp.c_str());
 
 	ret = mkstemp(tmpname);
@@ -2317,7 +2317,7 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 	entry *e = get_entry_object();
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
-	char tmpname[new_tmp.size()];
+	char tmpname[new_tmp.size()+1];
 	strcpy(tmpname, new_tmp.c_str());
 
 	ret = mkstemp(tmpname);
@@ -2326,7 +2326,7 @@ void variant_file::output_haplotype_r2_of_SNP_list_vs_all_others(const parameter
 	::close(ret);
 	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 
-	char tmpname2[new_tmp.size()];
+	char tmpname2[new_tmp.size()+1];
 	strcpy(tmpname2, new_tmp.c_str());
 
 	ret = mkstemp(tmpname2);
@@ -2558,7 +2558,7 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 	entry *e = get_entry_object();
 
 	string new_tmp = params.temp_dir+"/vcftools.XXXXXX";
-	char tmpname[new_tmp.size()];
+	char tmpname[new_tmp.size()+1];
 	strcpy(tmpname, new_tmp.c_str());
 
 	ret = mkstemp(tmpname);
@@ -2567,7 +2567,7 @@ void variant_file::output_genotype_r2_of_SNP_list_vs_all_others(const parameters
 	::close(ret);
 	ofstream fd(tmpname, std::ios::out | std::ios::binary);
 
-	char tmpname2[new_tmp.size()];
+	char tmpname2[new_tmp.size()+1];
 	strcpy(tmpname2, new_tmp.c_str());
 
 	ret = mkstemp(tmpname2);
